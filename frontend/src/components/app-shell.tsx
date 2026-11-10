@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navigation = [
   { href: "/manager", label: "Tổng quan", group: "Manager" },
@@ -56,11 +57,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
       <div className="app-main">
         <header className="topbar">
-          <div>
+          <div className="topbar-title">
             <span className="topbar-eyebrow">CWRM / Frontend skeleton</span>
             <strong>Điều phối công việc và quản trị rủi ro</strong>
           </div>
-          <span className="demo-pill">Dữ liệu minh họa</span>
+          <div className="topbar-tools">
+            <span className="demo-pill">Dữ liệu minh họa</span>
+            <ThemeToggle />
+          </div>
         </header>
         <main className="page-content">{children}</main>
       </div>

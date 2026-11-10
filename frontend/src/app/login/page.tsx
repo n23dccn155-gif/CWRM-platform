@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
   return (
     <main className="login-page">
+      <div className="login-theme-toggle"><ThemeToggle /></div>
       <div className="login-intro">
         <span className="login-mark">C</span>
         <p className="eyebrow">CWRM Platform</p>
