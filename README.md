@@ -13,7 +13,7 @@
 * **Mô hình RACI nghiêm ngặt:** Mỗi công việc luôn có duy nhất **01 Accountable (A)** chịu trách nhiệm cuối cùng và phê duyệt; quyền **Responsible (R)** được sinh ra tự động khi thành viên chính thức chấp nhận việc.
 * **Kênh nhận việc linh hoạt:** Kết hợp song song giữa **Giao việc trực tiếp (Direct Assignment)** và **Chợ việc tự do (Open Work)** có bộ lọc đáp ứng vai trò/kỹ năng (*Role/Skill Eligibility*).
 * **Quản trị tắc nghẽn (Blocker):** Theo dõi chặt chẽ các trở ngại khách quan và ràng buộc thứ tự công việc (*Finish-to-Start Dependency*).
-* **Động cơ rủi ro xác định (Rule-based Risk Engine):** Tự động phát hiện và phân loại rủi ro (*Low / Medium / High*) dựa trên dữ liệu thực tế (*thời gian còn lại, tiến độ, blocker, độ ưu tiên*) kèm minh chứng số liệu đối chiếu được.
+* **Động cơ rủi ro xác định (Rule-based Risk Engine):** Phân loại rủi ro (*Low / Medium / High*) theo rule và lưu evidence đối chiếu được. Bộ R01–R03 của Sprint 1 hiện là schema ứng viên; blocker mở là trạng thái công việc và chưa tự kích hoạt rule rủi ro trong POC này.
 * **Cố vấn AI (Human-in-the-Loop):** AI phân tích nguyên nhân gốc rễ và đề xuất phương án xử lý; quyết định can thiệp hoàn toàn do Quản lý thực hiện và lưu lại nhật ký kiểm toán (*Audit Log*).
 
 ---
@@ -22,8 +22,8 @@
 
 Repository này là **kho lưu trữ mã nguồn chính thức (Monorepo)** của nhóm dự án CWRM, bao gồm:
 * `frontend/`: Giao diện người dùng Web Client xây dựng bằng **Next.js (App Router), TypeScript và Tailwind CSS**.
-* `backend/`: *(Đang triển khai)* Hệ thống API máy chủ xây dựng bằng **NestJS, PostgreSQL và Prisma**.
-* `docs/`: Các bản thiết kế kiến trúc, hợp đồng API (OpenAPI Specs), ERD và tài liệu kỹ thuật của nhóm.
+* `backend/`: Dự kiến dành cho API máy chủ; kiến trúc, framework và cơ sở dữ liệu chờ Khôi chốt trong CWRM-11.
+* `docs/`: Dự kiến dành cho kiến trúc, API contract, ERD và tài liệu kỹ thuật của nhóm.
 
 ---
 
@@ -35,7 +35,7 @@ Dự án được thực hiện bởi nhóm 4 sinh viên:
 |---|---|---|
 | **Lê Đình Bảo** | **Project Manager (PM) / BA Lead** | Điều phối tiến độ, quản lý Backlog trên Jira, đặc tả yêu cầu nghiệp vụ và chủ biên hồ sơ dự án. |
 | **Trần Minh Khôi** | **Tech Lead / Backend Engineer** | Thiết kế kiến trúc hệ thống, xây dựng cơ sở dữ liệu (PostgreSQL), phát triển REST API và hạ tầng. |
-| **Đặng Văn Hiệp** | **Frontend Lead / UI/UX Designer** | Thiết kế User Flow, Wireframe (Figma), xây dựng toàn bộ giao diện Web Client (Next.js) và kịch bản demo. |
+| **Đặng Văn Hiệp** | **Frontend Lead / UI/UX Designer** | Thiết kế User Flow, Wireframe (Figma), xây dựng giao diện Web Client (Next.js) và kịch bản demo. |
 | **Lê Quốc Ban** | **Risk Engine & AI Lead / QA** | Phát triển thuật toán đánh giá rủi ro (Risk Engine R01–R12), tích hợp API AI server-side và kiểm thử chất lượng. |
 
 ---
@@ -70,8 +70,10 @@ npm run dev
 ## 🔗 5. Liên Kết Quản Trị & Thiết Kế
 
 * **Bảng công việc Jira:** [CWRM Scrum Board #34](https://ddinhbao05.atlassian.net/jira/software/projects/CWRM/boards/34/backlog)
-* **Sơ đồ User Flow (FigJam):** [FigJam CWRM — 4 Master Flows](https://www.figma.com/board/AufawHy38HFF2cYXJ0oxZD)
-* **Bản vẽ Wireframe (Figma):** [Figma Design — 6 Core Wireframes](https://www.figma.com/design/qXIOGnqtzXJyJB4Tv4GYFQ)
+* **Sơ đồ User Flow (FigJam):** [FigJam CWRM — 4 luồng chi tiết bản nháp](https://www.figma.com/board/AufawHy38HFF2cYXJ0oxZD)
+* **Bản vẽ Wireframe (Figma):** [Figma Design — 6 màn ban đầu, SC-02b đang chỉnh](https://www.figma.com/design/qXIOGnqtzXJyJB4Tv4GYFQ)
+* **Nguồn flow và wireframe local để review:** [CWRM-13](docs/ux/CWRM-13-user-flow-wireframes.md) — SC-06 còn cần đồng bộ vào Figma.
+* **Frontend local:** Có trang `/review` cho nghiệm thu và dependency, bên cạnh các màn Manager/Member. Đây là UI mock, chưa nối API CWRM-11.
 
 ---
 
