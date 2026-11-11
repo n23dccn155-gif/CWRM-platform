@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cwrm.example/schemas/risk-result-poc-v0.1.json",
+  "title": "CWRM Risk Result POC candidate v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["taskId", "riskLevel", "baseLevel", "evaluatedAt", "ruleVersion", "triggeredRules", "evidence", "inputFingerprint"],
+  "properties": {
+    "taskId": {"type": "string", "minLength": 1},
+    "riskLevel": {"enum": ["Low", "Medium", "High"]},
+    "baseLevel": {"enum": ["Low", "Medium", "High"]},
+    "evaluatedAt": {"type": "string", "format": "date-time"},
+    "ruleVersion": {"type": "string", "minLength": 1},
+    "triggeredRules": {"type": "array", "uniqueItems": true, "items": {"enum": ["R01", "R02", "R03"]}},
+    "inputFingerprint": {"type": "string", "minLength": 1, "description": "Stable digest of inputs used by this evaluation; algorithm pending API decision"},
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "source", "field", "value"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "source": {"enum": ["task", "evaluation", "rule", "impact"]},
+          "ruleId": {"enum": ["R01", "R02", "R03"]},
+          "field": {"type": "string", "minLength": 1},
+          "value": {"type": ["string", "number", "boolean", "null"]},
+          "unit": {"type": "string"}
+        }
+      }
+    }
+  }
+}
