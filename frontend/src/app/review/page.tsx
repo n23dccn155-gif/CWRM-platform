@@ -2,9 +2,10 @@ import Link from "next/link";
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
 import { TaskTable } from "@/components/task-table";
-import { demoTasks } from "@/lib/demo-data";
+import { listTasks } from "@/lib/api/client";
 
-export default function ReviewPage() {
+export default async function ReviewPage() {
+  const demoTasks = await listTasks();
   const awaitingReview = demoTasks.filter((task) => task.status === "Review");
   const successors = demoTasks.filter((task) => task.predecessorId);
 

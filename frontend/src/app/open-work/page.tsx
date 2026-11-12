@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
-import { demoMemberProfile, demoTasks, missingOpenWorkRequirements } from "@/lib/demo-data";
+import { demoMemberProfile, missingOpenWorkRequirements } from "@/lib/demo-data";
+import { listTasks } from "@/lib/api/client";
 
-const opportunities = demoTasks
-  .filter((task) => task.assignmentMode === "Open Work" && task.status === "To Do" && !task.responsible)
-  .map((task) => ({ ...task, missingRequirements: missingOpenWorkRequirements(task) }));
-
-export default function OpenWorkPage() {
+export default async function OpenWorkPage() {
+  const opportunities = (await listTasks())
+    .filter((task) => task.assignmentMode === "Open Work" && task.status === "To Do" && demoMemberProfile.teams.includes(task.team) && (task.reservedPeople ?? 0) < (task.requiredPeople ?? task.slots ?? 1))
+    .map((task) => ({ ...task, missingRequirements: missingOpenWorkRequirements(task) }));
   return (
     <AppShell>
       <PageHeading
@@ -19,7 +19,7 @@ export default function OpenWorkPage() {
       <div className="card-grid">
         {opportunities.map((item) => (
           <article className="panel opportunity-card" key={item.id}>
-            <div className="task-card-top"><span className="task-id">{item.id} · {item.team}</span><span className="count-label">0/{item.slots ?? 1} vị trí</span></div>
+            <div className="task-card-top"><span className="task-id">{item.id} · {item.team}</span><span className="count-label">Đã giữ {item.reservedPeople ?? 0}/{item.requiredPeople ?? item.slots ?? 1} vị trí</span></div>
             <h2>{item.title}</h2>
             <div className="requirement-row"><span>Role: <strong>{item.requiredRole}</strong></span><span>Skill: <strong>{item.requiredSkills?.join(", ")}</strong></span></div>
             {item.missingRequirements.length === 0 ? (
@@ -32,7 +32,7 @@ export default function OpenWorkPage() {
               <div className="eligibility danger"><strong>Chưa đủ điều kiện</strong><span>{item.missingRequirements.join(" · ")}</span></div>
             )}
             {item.requestStatus === "Pending" ? (
-              <Link className="button button-secondary" href={`/tasks/${item.id}`}>Xem request và task</Link>
+              <div className="button-row"><Link className="button button-secondary" href={`/tasks/${item.id}`}>Xem request và task</Link><button className="button button-secondary" disabled title="Chờ API">Rút request</button></div>
             ) : item.missingRequirements.length === 0 ? (
               <div className="button-row"><Link className="button button-secondary" href={`/tasks/${item.id}`}>Xem task</Link><button className="button button-primary" disabled>Gửi request</button></div>
             ) : (

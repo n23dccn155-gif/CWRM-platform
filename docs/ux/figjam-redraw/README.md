@@ -1,6 +1,6 @@
-# CWRM-13 — Bốn user flow để đưa vào FigJam
+# CWRM-13 — Bản SVG/PNG local lưu tham khảo
 
-Đây là **bản vẽ local đã kiểm tra hình ảnh**, chuẩn bị để nhập vào [FigJam CWRM-13](https://www.figma.com/board/AufawHy38HFF2cYXJ0oxZD). Chưa có thay đổi nào được ghi lên FigJam trong phiên này vì công cụ điều khiển trình duyệt báo bị tắt, dù người dùng đã bật quyền trong cài đặt.
+**Nguồn sơ đồ nộp và review hiện tại là [FigJam “User flow”](https://www.figma.com/board/AYGbljSDqFh9YbnGQ5sU8h/User-flow?node-id=0-1) đã gắn trên Jira CWRM-13.** Khôi đã xem trực tiếp bốn luồng trên bảng này và xác nhận khớp nghiệp vụ/API ngày 11/11/2026. Các SVG/PNG dưới đây được tạo trước đó ở máy local; giữ làm tài liệu tham khảo, không nhập thành bảng FigJam thứ hai và không thay thế board đang dùng.
 
 | Flow | File SVG | Nội dung |
 | --- | --- | --- |
@@ -9,8 +9,8 @@
 | 03 Thực hiện, blocker và risk | [03-execution-risk-ai.svg](03-execution-risk-ai.svg) | Blocker, Risk Engine/evidence, AI cố vấn, Manager can thiệp |
 | 04 Review và dependency | [04-review-dependency.svg](04-review-dependency.svg) | Guard của Start/Review, A duyệt hoặc trả lại, mở quyền Start |
 
-Mỗi SVG có PNG cùng tên để xem nhanh. `render_flows.py` là nguồn tạo SVG; khi sửa nội dung, chạy lại `python render_flows.py` rồi tạo lại PNG nếu cần. **Bốn flow này là các sơ đồ nghiệp vụ riêng của sản phẩm CWRM, không phải một Master Flow và không lấy TaskHub làm tên sản phẩm.**
+Mỗi SVG có PNG cùng tên để xem nhanh. `render_flows.py` là nguồn tạo SVG. **Bốn flow này là các sơ đồ nghiệp vụ riêng của sản phẩm CWRM, không phải một Master Flow và không lấy TaskHub làm tên sản phẩm.** Nội dung trong bộ ảnh local có thể cũ hơn board được Khôi review.
 
-Khi nhập vào FigJam, đặt bốn sơ đồ thành bốn vùng riêng, giữ tên 01–04. Kiểm tra chữ tiếng Việt và các mũi tên sau khi nhập. SVG là bản vẽ vector; mức độ chỉnh sửa từng chữ/đường sau khi nhập phụ thuộc cách Figma xử lý SVG, nên nguồn `render_flows.py` được giữ cùng bản vẽ.
+Nếu cần sửa sơ đồ, sửa trên board “User flow” đang dùng và đối chiếu review Khôi trong [tài liệu UX CWRM-13](../CWRM-13-user-flow-wireframes.md). Không dùng lại các nhãn cũ gán quyền của Manager cho A.
 
 Nguồn nghiệp vụ: Project Scope v0.1 ở thư mục `Hiep/Nguon_du_an/` bên cạnh repo, [tài liệu UX CWRM-13](../CWRM-13-user-flow-wireframes.md), quyết định Kickoff CWRM-8 và schema ứng viên CWRM-15. Điểm cần nhớ: blocker mở chặn Review nhưng không tự kích hoạt R03; Risk High không tự chặn Review; AI không tự sửa task; Done không tự Start successor.

@@ -1,6 +1,6 @@
-import type { AssignmentStatus, RequestStatus, RiskLevel, TaskStatus } from "@/lib/demo-data";
+import type { AssignmentStatus, RequestStatus, RiskLevel, SnapshotRiskLevel, TaskStatus } from "@/lib/demo-data";
 
-type BadgeValue = TaskStatus | AssignmentStatus | RequestStatus | RiskLevel | "Direct" | "Open Work" | "Được phép Start" | "Start bị khóa";
+type BadgeValue = TaskStatus | AssignmentStatus | RequestStatus | RiskLevel | SnapshotRiskLevel | "Direct" | "Open Work" | "Được phép Start" | "Start bị khóa";
 
 const tone: Record<BadgeValue, string> = {
   "To Do": "neutral",
@@ -18,6 +18,9 @@ const tone: Record<BadgeValue, string> = {
   Low: "success",
   Medium: "warning",
   High: "danger",
+  LOW: "success",
+  MEDIUM: "warning",
+  HIGH: "danger",
   Direct: "info",
   "Open Work": "violet",
   "Được phép Start": "success",

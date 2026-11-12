@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
-import { demoMemberProfile, demoTasks } from "@/lib/demo-data";
+import { demoDirectMemberProfile } from "@/lib/demo-data";
+import { listTasks } from "@/lib/api/client";
 
-export default function MyWorkPage() {
-  const invitation = demoTasks.find((task) => task.assignmentMode === "Direct" && task.assignee === demoMemberProfile.name && task.assignmentStatus === "Pending Acceptance");
-  const assigned = demoTasks.filter((task) => task.assignmentStatus === "Accepted" && task.responsible === demoMemberProfile.name);
+export default async function MyWorkPage() {
+  const demoTasks = await listTasks();
+  const invitation = demoTasks.find((task) => task.assignmentMode === "Direct" && task.assignee === demoDirectMemberProfile.name && task.assignmentStatus === "Pending Acceptance");
+  const assigned = demoTasks.filter((task) => task.assignmentStatus === "Accepted" && task.responsible === demoDirectMemberProfile.name);
 
   return (
     <AppShell>
@@ -14,11 +16,12 @@ export default function MyWorkPage() {
         title="Biết việc nào mình đã nhận"
         description="Lời mời nhận việc và task đang thực hiện được tách riêng, để Accepted không bị hiểu là Task Status."
       />
-      <p className="demo-context">Member minh họa: {demoMemberProfile.name} · {demoMemberProfile.teams.join(", ")}</p>
+      <p className="demo-context">Member minh họa: {demoDirectMemberProfile.name} · {demoDirectMemberProfile.teams.join(", ")}</p>
       {invitation && (
         <section className="panel invitation-panel">
           <div className="section-header"><div><p className="eyebrow">Lời mời Direct</p><h2>{invitation.title}</h2></div><StatusBadge value="Pending Acceptance" /></div>
           <p>Task vẫn <strong>To Do</strong>. Nếu chấp nhận, bạn trở thành R; task chỉ bắt đầu khi điều kiện dependency cho phép.</p>
+          <label className="field">Lý do từ chối (bắt buộc khi Decline)<textarea rows={2} disabled placeholder="Nhập lý do để Manager có thể giao lại" /></label>
           <div className="button-row"><Link className="button button-secondary" href={`/tasks/${invitation.id}`}>Xem chi tiết</Link><button className="button button-primary" disabled>Chấp nhận</button><button className="button button-secondary" disabled>Từ chối</button><span className="muted">Chưa kết nối API</span></div>
         </section>
       )}
@@ -35,6 +38,8 @@ export default function MyWorkPage() {
               <div className="progress-track"><span style={{ width: `${task.progress}%` }} /></div>
               {task.openBlockers > 0 && <p className="warning-line">{task.openBlockers} blocker đang mở — chưa thể gửi Review.</p>}
               {task.predecessorId && demoTasks.find((item) => item.id === task.predecessorId)?.status !== "Done" && <p className="warning-line">Chờ {task.predecessorId} Done — chưa thể Start.</p>}
+              {task.status === "To Do" && <button className="button button-primary" disabled title="Chờ API và kiểm tra dependency">Start</button>}
+              {task.status === "In Progress" && <div className="form-grid"><label className="field">Progress (%)<input type="number" min="0" max="100" defaultValue={task.progress} disabled /></label><label className="field">Effort (giờ)<input type="number" min="0" step="0.5" disabled placeholder="Số giờ đã làm" /></label><button className="button button-secondary" disabled>Lưu tiến độ</button></div>}
               <Link className="button button-secondary" href={`/tasks/${task.id}`}>{task.status === "Review" ? "Xem trạng thái nghiệm thu" : "Xem chi tiết công việc"}</Link>
             </article>
           ))}

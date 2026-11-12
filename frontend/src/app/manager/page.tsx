@@ -2,10 +2,12 @@ import Link from "next/link";
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
 import { TaskTable } from "@/components/task-table";
-import { demoTasks } from "@/lib/demo-data";
+import { listTasks } from "@/lib/api/client";
 
-export default function ManagerPage() {
-  const highRisk = demoTasks.filter((task) => task.riskLevel === "High");
+export default async function ManagerPage() {
+  const demoTasks = await listTasks();
+  const interventionTasks = demoTasks.filter((task) => task.riskLevel === "High" || task.riskLevel === "Medium");
+  const highRisk = interventionTasks.filter((task) => task.riskLevel === "High");
   const blocked = demoTasks.filter((task) => task.status === "Blocked");
   const inProgress = demoTasks.filter((task) => task.status === "In Progress");
   const awaitingReview = demoTasks.filter((task) => task.status === "Review");
@@ -28,10 +30,10 @@ export default function ManagerPage() {
 
       <section className="panel section-gap">
         <div className="section-header">
-          <div><p className="eyebrow">Ưu tiên xử lý</p><h2>Rủi ro có bằng chứng</h2></div>
+          <div><p className="eyebrow">Ưu tiên xử lý</p><h2>Task cần can thiệp · Medium/High</h2></div>
           <Link href="/risk" className="text-link">Xem chi tiết →</Link>
         </div>
-        {highRisk.map((task) => (
+        {interventionTasks.map((task) => (
           <div className="risk-row" key={task.id}>
             <div className="risk-indicator" aria-hidden="true" />
             <div className="risk-row-main">

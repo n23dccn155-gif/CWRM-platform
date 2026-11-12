@@ -1,17 +1,29 @@
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
-import {
-  demoCurrentInputFingerprint,
-  demoRiskSnapshot,
-  demoTasks,
-  type RiskSnapshot,
-} from "@/lib/demo-data";
+import { getRiskSnapshot, listTasks, usingDemoData } from "@/lib/api/client";
+import type { RiskSnapshot } from "@/lib/demo-data";
 
 const fieldLabel: Record<string, string> = {
-  deadline: "Hạn hoàn thành",
+  deadlineAt: "Hạn hoàn thành",
   remainingHours: "Thời gian còn lại",
   progress: "Tiến độ",
   priority: "Độ ưu tiên",
+  remainingHoursMinExclusive: "Ngưỡng thời gian dưới (không gồm)",
+  remainingHoursMaxInclusive: "Ngưỡng thời gian trên (gồm)",
+  progressMaxExclusive: "Ngưỡng tiến độ dưới (không gồm)",
+};
+
+const sourceLabel: Record<RiskSnapshot["evidence"][number]["source"], string> = {
+  task: "Công việc",
+  evaluation: "Lần đánh giá",
+  rule: "Quy tắc",
+  impact: "Điều kiện nâng mức",
+};
+
+const ruleExplanation: Record<RiskSnapshot["triggeredRules"][number], string> = {
+  R01: "Đã quá deadline (thời gian còn lại < 0 giờ).",
+  R02: "Còn 0–24 giờ và tiến độ dưới 80%.",
+  R03: "Còn trên 24 đến 48 giờ và tiến độ dưới 50%.",
 };
 
 function formatDate(value: string) {
@@ -24,18 +36,18 @@ function formatDate(value: string) {
 
 function formatEvidenceValue(item: RiskSnapshot["evidence"][number]) {
   if (item.value === null) return "Không có";
-  if (item.field === "deadline" && typeof item.value === "string") return formatDate(item.value);
+  if (item.field === "deadlineAt" && typeof item.value === "string") return formatDate(item.value);
   if (item.unit === "hours") return `${item.value} giờ`;
   if (item.unit === "percent") return `${item.value}%`;
   return String(item.value);
 }
 
-export default function RiskPage() {
-  const snapshot = demoRiskSnapshot;
-  const task = demoTasks.find((item) => item.id === snapshot.taskId);
-  if (!task) return null;
+export default async function RiskPage() {
+  const tasks = await listTasks();
+  const task = tasks.find((item) => item.riskLevel === "High" || item.riskLevel === "Medium");
+  const snapshot = task ? await getRiskSnapshot(task.id) : undefined;
+  if (!task || !snapshot) return <AppShell><PageHeading eyebrow="Manager / Risk evidence" title="Chưa có snapshot để xem" description="Khi Risk Engine đánh giá task, mức risk và evidence sẽ xuất hiện ở đây." /></AppShell>;
 
-  const current = demoCurrentInputFingerprint === snapshot.inputFingerprint;
   const remaining = snapshot.evidence.find((item) => item.field === "remainingHours");
   const progress = snapshot.evidence.find((item) => item.field === "progress");
   const priority = snapshot.evidence.find((item) => item.field === "priority" && item.source === "impact");
@@ -55,7 +67,7 @@ export default function RiskPage() {
           </div>
           <p className="risk-summary">
             {remaining && progress
-              ? `Còn ${formatEvidenceValue(remaining)}, tiến độ ${formatEvidenceValue(progress)}.`
+              ? `Tại thời điểm đánh giá: còn ${formatEvidenceValue(remaining)}, tiến độ ${formatEvidenceValue(progress)}.`
               : "Xem bằng chứng của lần đánh giá này."}
             {priority && snapshot.baseLevel !== snapshot.riskLevel
               ? ` Mức cơ sở ${snapshot.baseLevel} được nâng lên ${snapshot.riskLevel} do ưu tiên ${priority.value}.`
@@ -63,11 +75,18 @@ export default function RiskPage() {
           </p>
           <div className="detail-grid">
             <div><span>Task Status</span><StatusBadge value={task.status} /></div>
-            <div><span>Assignment Status</span><StatusBadge value={task.assignmentStatus ?? "Pending Acceptance"} /></div>
+            <div><span>Assignment Status</span>{task.assignmentStatus ? <StatusBadge value={task.assignmentStatus} /> : <strong>Không có lời mời</strong>}</div>
             <div><span>Mức cơ sở</span><StatusBadge value={snapshot.baseLevel} /></div>
             <div><span>Rule kích hoạt</span><strong>{snapshot.triggeredRules.join(", ") || "Không có"}</strong></div>
-            <div><span>Đánh giá lúc</span><strong>{formatDate(snapshot.evaluatedAt)}</strong></div>
-            <div><span>Độ mới dữ liệu</span><strong>{current ? "Khớp input mẫu" : "Snapshot đã cũ"}</strong></div>
+            <div><span>Đánh giá lúc (giờ Việt Nam)</span><strong>{formatDate(snapshot.evaluatedAt)}</strong></div>
+            <div><span>Độ mới dữ liệu</span><strong>{snapshot.isCurrent === false ? "Snapshot đã cũ" : snapshot.isCurrent === true ? "Hiện tại" : "Chưa xác minh"}</strong></div>
+          </div>
+          <div className="rule-callout">
+            <strong>Vì sao kích hoạt {snapshot.triggeredRules.join(", ") || "không có rule"}?</strong>
+            {snapshot.triggeredRules.length ? snapshot.triggeredRules.map((rule) => (
+              <span key={rule}>{rule}: {ruleExplanation[rule] ?? "Xem evidence và phiên bản rule để biết điều kiện kích hoạt."}</span>
+            )) : <span>Đầu vào hợp lệ nhưng không thỏa điều kiện của R01–R03.</span>}
+            {priority && snapshot.baseLevel !== snapshot.riskLevel && <span>Priority {priority.value} nâng mức cơ sở {snapshot.baseLevel} lên {snapshot.riskLevel}; priority không tự tạo risk.</span>}
           </div>
           <div className="divider" />
           <div className="section-header"><h3>Evidence của snapshot</h3><span className="count-label">{snapshot.evidence.length} mục · {snapshot.ruleVersion}</span></div>
@@ -79,7 +98,7 @@ export default function RiskPage() {
                   {snapshot.evidence.map((item) => (
                     <tr key={item.id}>
                       <td><code>{item.id}</code></td>
-                      <td>{item.source}{item.ruleId ? ` · ${item.ruleId}` : ""}</td>
+                      <td>{sourceLabel[item.source]}{item.ruleId ? ` · ${item.ruleId}` : ""}</td>
                       <td>{fieldLabel[item.field] ?? item.field}</td>
                       <td><strong>{formatEvidenceValue(item)}</strong></td>
                     </tr>
@@ -92,7 +111,8 @@ export default function RiskPage() {
             <strong>Ngữ cảnh cần phân biệt</strong>
             <span>Blocker đang mở làm task ở trạng thái Blocked. Trong POC R01–R03, blocker chưa tự kích hoạt rule risk theo thời lượng. Muốn gửi Review phải giải quyết blocker trước.</span>
           </div>
-          <p className="meta-line">Schema CWRM-15 là bản ứng viên, đang chờ CWRM-11 chốt API. Fingerprint trên trang này chỉ là dữ liệu mock, không phải hash thực.</p>
+          {snapshot.evaluationError && <p className="warning-line">Lần đánh giá mới gặp lỗi: {snapshot.evaluationError.message ?? snapshot.evaluationError.code}. Evidence của snapshot trước vẫn xem được.</p>}
+          <p className="meta-line">{usingDemoData ? "Schema CWRM-15 là bản ứng viên, đang chờ CWRM-11 chốt API. Dữ liệu trên là ví dụ minh họa." : "Độ mới snapshot lấy từ isCurrent của API; UI không tự tính fingerprint."}</p>
         </section>
         <section className="panel ai-panel">
           <p className="eyebrow">Advisory only</p>

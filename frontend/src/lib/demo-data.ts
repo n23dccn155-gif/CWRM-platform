@@ -3,6 +3,7 @@ export type TaskStatus = "To Do" | "In Progress" | "Blocked" | "Review" | "Done"
 export type AssignmentStatus = "Pending Acceptance" | "Accepted" | "Declined";
 export type RequestStatus = "Pending" | "Approved" | "Rejected" | "Withdrawn";
 export type RiskLevel = "Low" | "Medium" | "High";
+export type SnapshotRiskLevel = "LOW" | "MEDIUM" | "HIGH";
 export type AssignmentMode = "Direct" | "Open Work";
 export type Priority = "Low" | "Medium" | "High" | "Critical";
 
@@ -16,6 +17,9 @@ export interface TaskSummary {
   requestStatus?: RequestStatus;
   accountable: string;
   responsible?: string;
+  responsibleUserIds?: string[];
+  assignments?: { id: string; userName: string; status: AssignmentStatus; reason?: string }[];
+  requests?: { id: string; userName: string; status: RequestStatus; reason?: string }[];
   priority: Priority;
   progress: number;
   deadlineLabel: string;
@@ -25,22 +29,28 @@ export interface TaskSummary {
   requiredRole?: string;
   requiredSkills?: string[];
   slots?: number;
+  requiredPeople?: number;
+  reservedPeople?: number;
   predecessorId?: string;
   description?: string;
+  reviewResultText?: string;
+  reviewResultUrl?: string;
 }
 
 export interface RiskSnapshot {
   taskId: string;
-  riskLevel: RiskLevel;
-  baseLevel: RiskLevel;
+  riskLevel: SnapshotRiskLevel;
+  baseLevel: SnapshotRiskLevel;
   evaluatedAt: string;
   ruleVersion: string;
-  triggeredRules: ("R01" | "R02" | "R03")[];
+  triggeredRules: string[];
   inputFingerprint: string;
+  isCurrent?: boolean;
+  evaluationError?: { code?: string; message?: string } | null;
   evidence: {
     id: string;
     source: "task" | "evaluation" | "rule" | "impact";
-    ruleId?: "R01" | "R02" | "R03";
+    ruleId?: string;
     field: string;
     value: string | number | boolean | null;
     unit?: string;
@@ -49,10 +59,17 @@ export interface RiskSnapshot {
 
 /** Hồ sơ Member minh họa cho trạng thái eligibility trên Open Work. */
 export const demoMemberProfile = {
-  name: "Thành viên nội dung",
+  name: "Thành viên thiết kế",
   teams: ["Nhóm A"],
   role: "Designer",
   skills: ["Figma"],
+};
+
+export const demoDirectMemberProfile = {
+  name: "Thành viên nội dung",
+  teams: ["Nhóm A"],
+  role: "Content",
+  skills: ["Writing"],
 };
 
 export function missingOpenWorkRequirements(task: TaskSummary): string[] {
@@ -80,6 +97,7 @@ export const demoTasks: TaskSummary[] = [
     riskLevel: "Low",
     openBlockers: 0,
     assignee: "Thành viên nội dung",
+    assignments: [{ id: "as-01", userName: "Thành viên nội dung", status: "Pending Acceptance" }],
     description: "Chuẩn bị bản hướng dẫn để nhóm có thể triển khai đồng nhất.",
   },
   {
@@ -89,6 +107,7 @@ export const demoTasks: TaskSummary[] = [
     status: "To Do",
     assignmentMode: "Open Work",
     requestStatus: "Pending",
+    requests: [{ id: "rq-01", userName: "Thành viên thiết kế", status: "Pending" }],
     accountable: "Quản lý nhóm",
     priority: "Medium",
     progress: 0,
@@ -98,6 +117,8 @@ export const demoTasks: TaskSummary[] = [
     requiredRole: "Designer",
     requiredSkills: ["Figma"],
     slots: 1,
+    requiredPeople: 1,
+    reservedPeople: 0,
     description: "Thiết kế màn hình tổng quan theo yêu cầu của nhóm.",
   },
   {
@@ -110,6 +131,9 @@ export const demoTasks: TaskSummary[] = [
     requestStatus: "Approved",
     accountable: "Quản lý nhóm",
     responsible: "Thành viên thiết kế",
+    responsibleUserIds: ["member-designer"],
+    assignments: [{ id: "as-02", userName: "Thành viên thiết kế", status: "Accepted" }],
+    requests: [{ id: "rq-02", userName: "Thành viên thiết kế", status: "Approved" }],
     priority: "High",
     progress: 30,
     deadlineLabel: "Còn 40 giờ",
@@ -118,6 +142,8 @@ export const demoTasks: TaskSummary[] = [
     requiredRole: "Designer",
     requiredSkills: ["Figma"],
     slots: 1,
+    requiredPeople: 1,
+    reservedPeople: 1,
     description: "Hoàn thiện thiết kế và bàn giao cho bước triển khai tiếp theo.",
   },
   {
@@ -146,6 +172,9 @@ export const demoTasks: TaskSummary[] = [
     assignmentStatus: "Accepted",
     accountable: "Quản lý nhóm",
     responsible: "Thành viên nội dung",
+    responsibleUserIds: ["member-content"],
+    assignments: [{ id: "as-03", userName: "Thành viên nội dung", status: "Accepted" }],
+    reviewResultText: "Đã hoàn thành nội dung và gửi bản bàn giao cho A nghiệm thu.",
     priority: "Medium",
     progress: 100,
     deadlineLabel: "Còn 12 giờ",
@@ -187,6 +216,8 @@ export const demoTasks: TaskSummary[] = [
     requiredRole: "Analyst",
     requiredSkills: ["Documentation"],
     slots: 1,
+    requiredPeople: 1,
+    reservedPeople: 0,
     description: "Việc mở, nhưng Member minh họa không thuộc team và thiếu role/skill bắt buộc.",
   },
   {
@@ -204,27 +235,30 @@ export const demoTasks: TaskSummary[] = [
     requiredRole: "Designer",
     requiredSkills: ["Figma"],
     slots: 1,
+    requiredPeople: 1,
+    reservedPeople: 0,
     description: "Việc mở đủ điều kiện nhưng Member chưa gửi request.",
   },
 ];
 
-// Fixture tổng quát theo schema ứng viên CWRM-15: R03 tạo Medium, priority High nâng lên High.
+// Fixture UI đồng bộ với commit 46db860 của CWRM-15; taskId khớp task demo local.
 // Blocker vừa mở làm task Blocked, nhưng chưa kích hoạt rule thời lượng trong POC R01–R03.
 export const demoRiskSnapshot: RiskSnapshot = {
   taskId: "TASK-103",
-  riskLevel: "High",
-  baseLevel: "Medium",
+  riskLevel: "HIGH",
+  baseLevel: "MEDIUM",
   evaluatedAt: "2026-11-10T03:00:00Z",
   ruleVersion: "candidate-v0.1-r01-r03",
   triggeredRules: ["R03"],
-  inputFingerprint: "example-only-not-a-real-hash",
+  inputFingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000",
+  isCurrent: true,
   evidence: [
-    { id: "ev-01", source: "task", ruleId: "R03", field: "deadline", value: "2026-11-11T19:00:00Z" },
+    { id: "ev-01", source: "task", ruleId: "R03", field: "deadlineAt", value: "2026-11-11T19:00:00Z" },
     { id: "ev-02", source: "evaluation", ruleId: "R03", field: "remainingHours", value: 40, unit: "hours" },
     { id: "ev-03", source: "task", ruleId: "R03", field: "progress", value: 30, unit: "percent" },
-    { id: "ev-04", source: "impact", field: "priority", value: "High" },
+    { id: "ev-04", source: "impact", field: "priority", value: "HIGH" },
+    { id: "ev-05", source: "rule", ruleId: "R03", field: "remainingHoursMinExclusive", value: 24, unit: "hours" },
+    { id: "ev-06", source: "rule", ruleId: "R03", field: "remainingHoursMaxInclusive", value: 48, unit: "hours" },
+    { id: "ev-07", source: "rule", ruleId: "R03", field: "progressMaxExclusive", value: 50, unit: "percent" },
   ],
 };
-
-// Chỉ để minh họa cách UI nhận biết snapshot cũ; fingerprint thật do API CWRM-11 chốt.
-export const demoCurrentInputFingerprint = "example-only-not-a-real-hash";

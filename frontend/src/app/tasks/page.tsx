@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { TaskTable } from "@/components/task-table";
-import { demoTasks } from "@/lib/demo-data";
+import { listTasks, usingDemoData } from "@/lib/api/client";
 
-export default function TasksPage() {
+export default async function TasksPage() {
+  const demoTasks = await listTasks();
   return (
     <AppShell>
       <PageHeading
@@ -13,10 +14,10 @@ export default function TasksPage() {
         action={<Link className="button button-primary" href="/tasks/new">+ Tạo công việc</Link>}
       />
       <section className="panel">
-        <div className="section-header"><h2>Tất cả task</h2><span className="count-label">{demoTasks.length} công việc minh họa</span></div>
+        <div className="section-header"><h2>Tất cả task</h2><span className="count-label">{demoTasks.length} công việc{usingDemoData ? " minh họa" : ""}</span></div>
         <TaskTable tasks={demoTasks} />
       </section>
-      <p className="helper-note">Bảng này chỉ hiển thị dữ liệu mẫu. Quyền xem theo team và bộ lọc sẽ được nối với API sau khi hợp đồng dữ liệu được duyệt.</p>
+      {usingDemoData && <p className="helper-note">Bảng này hiển thị dữ liệu mẫu. Quyền xem theo team và bộ lọc cần được backend kiểm tra.</p>}
     </AppShell>
   );
 }

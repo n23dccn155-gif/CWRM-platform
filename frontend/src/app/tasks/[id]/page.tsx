@@ -2,16 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
-import { demoRiskSnapshot, demoTasks } from "@/lib/demo-data";
+import { getRiskSnapshot, getTask, listTasks } from "@/lib/api/client";
 
-export function generateStaticParams() {
-  return demoTasks.map((task) => ({ id: task.id }));
-}
+export const instant = false;
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const task = demoTasks.find((item) => item.id === id);
+  const task = await getTask(id);
   if (!task) notFound();
+  const demoTasks = await listTasks();
+  const demoRiskSnapshot = await getRiskSnapshot(id);
   const predecessor = task.predecessorId ? demoTasks.find((item) => item.id === task.predecessorId) : undefined;
   const waitingForDependency = Boolean(predecessor && predecessor.status !== "Done");
   const reviewReady = task.progress === 100 && task.openBlockers === 0;
@@ -33,7 +33,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             <div><span>A chịu trách nhiệm</span><strong>{task.accountable}</strong></div>
             <div><span>R thực hiện</span><strong>{task.responsible ?? "Chưa có R Accepted"}</strong></div>
             {task.assignmentMode === "Direct" ? (
-              <div><span>Assignment Status</span><StatusBadge value={task.assignmentStatus ?? "Pending Acceptance"} /></div>
+              <div><span>Assignment Status</span>{task.assignmentStatus ? <StatusBadge value={task.assignmentStatus} /> : <strong>Chưa gửi lời mời</strong>}</div>
             ) : (
               <>
                 <div><span>Request Status</span>{task.requestStatus ? <StatusBadge value={task.requestStatus} /> : <strong>Chưa có request</strong>}</div>
@@ -52,10 +52,10 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         <section className="panel">
           <div className="section-header"><h2>Rủi ro và hành động</h2><StatusBadge value={task.riskLevel} /></div>
           <p className="page-description">Risk được tính từ dữ liệu công việc. Manager không nhập Risk Score thủ công.</p>
-          {task.id === demoRiskSnapshot.taskId ? (
+          {demoRiskSnapshot ? (
             <Link href="/risk" className="button button-primary" style={{ marginTop: 22 }}>Xem evidence</Link>
           ) : (
-            <p className="helper-note">Bản demo chỉ có snapshot chi tiết cho {demoRiskSnapshot.taskId}.</p>
+            <p className="helper-note">Task này chưa có snapshot risk chi tiết.</p>
           )}
           <div className="divider" />
           <p className="helper-note">Risk Level là kết quả của Risk Engine. Blocked là Task Status; hai dữ liệu không thay thế nhau.</p>
@@ -69,7 +69,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         {task.assignmentMode === "Direct" ? (
           <div className="flow-stage-grid">
             <div className="flow-stage-card"><span>Người được đề nghị</span><strong>{task.assignee ?? "Chưa chọn"}</strong><small>Chỉ Member trong team mới có thể phản hồi.</small></div>
-            <div className="flow-stage-card"><span>Trạng thái lời mời</span><StatusBadge value={task.assignmentStatus ?? "Pending Acceptance"} /><small>{task.assignmentStatus === "Accepted" ? "Accepted tạo R; không tự Start task." : "Pending chưa tạo R."}</small></div>
+            <div className="flow-stage-card"><span>Trạng thái lời mời</span>{task.assignmentStatus ? <StatusBadge value={task.assignmentStatus} /> : <strong>Chưa gửi</strong>}<small>{task.assignmentStatus === "Accepted" ? "Accepted tạo R; không tự Start task." : "Chưa Accepted thì chưa tạo R."}</small></div>
             <div className="flow-stage-card"><span>Người thực hiện R</span><strong>{task.responsible ?? "Chưa có R"}</strong><small>Mỗi task vẫn có đúng một A: {task.accountable}.</small></div>
           </div>
         ) : (
