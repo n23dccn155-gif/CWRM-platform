@@ -1,6 +1,6 @@
 # CWRM-14 — Đối chiếu tiêu chí chấp nhận (12/11/2026)
 
-**Trạng thái đề xuất: In Progress.** Đây là bản kiểm tra tại máy của Hiệp, chưa phải biên bản nghiệm thu. Nhánh local `feature/CWRM-14-frontend-ui-skeleton` có thay đổi mới chưa đẩy lên GitHub; không dẫn commit `167d0af` làm bằng chứng cho các sửa đổi đó. Chưa có ảnh hoặc video giao diện chạy thật được đính kèm Jira.
+**Trạng thái đề xuất: In Progress.** Rà soát lại tối 12/11: nhánh đã có commit `3927e3e` trên GitHub và hai ảnh `/manager`, `/my-work` được đính kèm bình luận Jira CWRM-14 lúc 21:19. Hai ảnh chứng minh hai màn đã chạy, nhưng chưa thể hiện thao tác điều hướng xuyên màn. Commit `3927e3e` bị lỗi production build ở `/risk` do đọc `searchParams` ngoài Suspense; đã sửa **ở local** và kiểm tra lại build/lint thành công. Bản sửa build chưa được đẩy lên GitHub.
 
 ## Nguồn đối chiếu
 
@@ -15,18 +15,18 @@
 
 | AC | Kết quả hiện tại | Việc còn để nghiệm thu |
 |---|---|---|
-| 1. Chạy local, build không lỗi lớn | `npm.cmd run lint` và `npm.cmd run build` chạy qua ngày 12/11; build liệt kê 13 trang/tuyến. | Người review chạy theo `frontend/README.md` trên máy của họ. |
-| 2. Layout, điều hướng và các màn skeleton | Có `/login`, `/manager`, `/tasks`, `/tasks/new`, `/tasks/[id]`, `/my-work`, `/open-work`, `/review`, `/risk`; có trang 404 tiếng Việt. Dashboard đã đưa rủi ro và hàng chờ Review lên trước số liệu. | Chụp luồng điều hướng chạy thật, kiểm tra màn hình nhỏ và giao diện theo role. Menu demo vẫn hiển thị cả Manager và Member vì chưa có phiên đăng nhập thật. |
+| 1. Chạy local, build không lỗi lớn | Với bản sửa `/risk` ở local, `npm.cmd run lint`, `npx.cmd tsc --noEmit` và `npm.cmd run build` đều qua; build liệt kê 13 trang/tuyến. | Đẩy bản sửa build khi Hiệp cho phép, rồi Khôi chạy lại trên đúng commit mới. `3927e3e` chưa đạt AC1 vì build thất bại ở `/risk`. |
+| 2. Layout, điều hướng và các màn skeleton | Có `/login`, `/manager`, `/tasks`, `/tasks/new`, `/tasks/[id]`, `/my-work`, `/open-work`, `/review`, `/risk`; có trang 404 tiếng Việt. Hai ảnh Jira cho thấy `/manager` và `/my-work` trên màn desktop; dashboard đưa rủi ro và hàng chờ Review lên trước số liệu. | Chưa có bằng chứng trực quan cho task detail, risk, 404 hoặc màn hình nhỏ. Menu demo vẫn hiển thị cả Manager và Member vì chưa có phiên đăng nhập thật. |
 | 3. Mock model theo contract và một điểm thay API | `src/lib/api/client.ts` là đầu mối đọc task/risk; mã API được đổi sang nhãn qua adapter. Form tạo task đã tách lời mời Direct khỏi `TaskCreateRequest` và dùng `requiredRoleIds`, `requiredSkillIds`, `effortEstimateHours`. | **Chưa thể ghi “khớp 100%”.** Mock `TaskSummary` còn là view model làm phẳng, chưa phản ánh đầy đủ Task/Risk/Assignment/Request; trang vẫn dùng profile demo; server component chưa có phiên/token để gọi API bảo vệ. Cần Khôi xác nhận adapter và bổ sung contract test khi API nghiệp vụ sẵn sàng. |
-| 4. Commit/PR và ảnh hoặc video điều hướng | Có nhánh frontend; bản sửa mới được lưu ở local. | Đẩy đúng commit chứa bản đã kiểm tra khi Hiệp cho phép; đính kèm ảnh hoặc video chạy thật vào Jira, thể hiện ít nhất `/manager → /tasks → /tasks/[id] → /risk` và luồng Member `/my-work → /open-work`. Không chuyển Done trước khi có bằng chứng này và review. |
+| 4. Commit/PR và ảnh hoặc video điều hướng | Commit `3927e3e` đã có trên nhánh; Jira có hai ảnh chụp `/manager` và `/my-work`. | Cần bằng chứng thao tác điều hướng hoặc video đi qua `/manager → /tasks → /tasks/[id] → /risk` và `/my-work → /open-work`, cùng link commit chứa bản sửa build. Không chuyển Done trước khi Khôi/Bảo nghiệm thu. |
 
 ## Các giới hạn của bản skeleton
 
-- Các nút tạo việc, mời Direct, gửi/rút request, nghiệm thu và hỏi AI chưa ghi dữ liệu. Không trình bày chúng như tính năng đã tích hợp.
+- Các thao tác nghiệp vụ tạo việc, mời Direct, gửi/rút request và nghiệm thu chưa ghi dữ liệu qua API. Khối AI mới có tương tác mô phỏng ở trình duyệt, không phải kết quả API thật; không trình bày chúng như tính năng backend đã tích hợp.
 - Form chọn các ID mẫu như `team-a`, chưa phải UUID hợp lệ; phần xem trước chỉ minh họa cấu trúc tạo task, không phải request có thể gửi thật.
 - Điều kiện Open Work đang tính theo profile demo. Backend vẫn phải kiểm tra lại role, skill và sức chứa tại thời điểm request hoặc duyệt.
 - Risk hiển thị snapshot mẫu CWRM-15, có `isCurrent` và 7 evidence; việc tính risk, fallback AI và các lỗi thật chưa được kiểm chứng end-to-end.
-- Trang `/tasks/TASK-999` có đường `notFound()` trong mã nguồn. Chưa có ảnh/HTTP kiểm chứng trực tiếp trong phiên này do trình duyệt tích hợp không truy cập được localhost; không tính đó là bằng chứng ảnh AC4.
+- Trang `/tasks/TASK-999` có đường `notFound()` trong mã nguồn. Chưa có ảnh/HTTP kiểm chứng trực tiếp trong phiên này do trình duyệt tích hợp không truy cập được localhost; không tính đó là bằng chứng ảnh AC4. Docker Desktop đang chạy PostgreSQL healthy, chưa có container frontend/API nghiệp vụ; frontend mock không cần database này để render.
 
 ## Cách tạo bằng chứng còn thiếu
 

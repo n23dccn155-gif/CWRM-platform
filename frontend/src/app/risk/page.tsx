@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AppShell, PageHeading } from "@/components/app-shell";
 import { StatusBadge } from "@/components/status-badge";
 import { RiskAdvisorPanel } from "@/components/risk-advisor-panel";
@@ -72,13 +73,25 @@ function MonoTag({ children, tone = "default" }: { children: React.ReactNode; to
   );
 }
 
-export default async function RiskPage({
+export default function RiskPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ taskId?: string }>;
+  searchParams: Promise<{ taskId?: string }>;
 }) {
-  const resolvedParams = searchParams ? await searchParams : undefined;
-  const targetId = resolvedParams?.taskId;
+  return (
+    <Suspense fallback={<AppShell><PageHeading eyebrow="Manager / Risk" title="Đang tải báo cáo rủi ro" description="Đang lấy dữ liệu đánh giá và bằng chứng của công việc." /></AppShell>}>
+      <RiskContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function RiskContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ taskId?: string }>;
+}) {
+  const resolvedParams = await searchParams;
+  const targetId = resolvedParams.taskId;
   const tasks = await listTasks();
   const task =
     (targetId ? tasks.find((item) => item.id === targetId) : undefined) ??
