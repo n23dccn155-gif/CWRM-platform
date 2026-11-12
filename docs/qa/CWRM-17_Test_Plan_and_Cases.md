@@ -1,8 +1,8 @@
 # CWRM-17 — Test Plan và test cases ban đầu
 
-**Trạng thái:** bản nháp 10/11/2026; chưa phải kết quả kiểm thử.
+**Trạng thái 12/11/2026:** Bảo đồng ý dùng Test Plan và 14 ca làm thiết kế ban đầu. Đã bổ sung kỳ vọng API từ review của Khôi. Các ca chưa thực thi.
 
-**Nguồn:** Scope v0.1 (S01–S12, AC01–AC14), Foundation, Jira CWRM-17, rubric môn học.
+**Nguồn:** Scope v0.1 (S01–S12, AC01–AC14), Foundation, rubric, [CWRM-17](https://ddinhbao05.atlassian.net/browse/CWRM-17) và [OpenAPI 0.1.0-draft của CWRM-11](https://github.com/n23dccn155-gif/CWRM-platform/blob/feature/CWRM-11-architecture-erd-api/docs/api/openapi.yaml).
 **Người điều phối QA:** Lê Quốc Ban. Owner từng tính năng chuẩn bị dữ liệu/sửa lỗi; người khác review ca kiểm thử và bằng chứng.
 
 ## 1. Mục tiêu và phạm vi
@@ -30,21 +30,36 @@ Mỗi execution record cần: case ID, AC/Sxx, build/commit, môi trường, d�
 | ID | Yêu cầu | Tình huống và bước chính | Kỳ vọng | Loại |
 | --- | --- | --- | --- | --- |
 | TC-01 | S04, AC02 | Manager Direct assign; Member chưa phản hồi | Assignment Pending; không có R Accepted; task vẫn To Do | API/E2E |
-| TC-02 | S04, AC02 | Member Accept rồi thử bắt đầu khi predecessor chưa Done | R tạo đúng; Accept không tự In Progress; bắt đầu bị chặn do dependency | API/E2E |
+| TC-02 | S04, AC02 | Member Accept rồi thử Start khi predecessor chưa Done | Có R; Accept giữ nguyên trạng thái task; Start trả 422 `PREDECESSOR_NOT_DONE` | API/E2E |
 | TC-03 | S05, AC03 | Member đủ role/skill request Open Work; Manager Approve | Request Pending không tạo R; chỉ Approve tạo Accepted/R, không vượt số chỗ | API/E2E |
-| TC-04 | S05, AC03 | Hai request cùng được duyệt khi còn một chỗ | Chỉ một giao dịch thành công; không oversubscribe | Integration |
-| TC-05 | S06, AC04 | Tạo/sửa task và gỡ A hoặc R cuối | Luôn đúng một A; từ chối thao tác khiến task đang cần R bị mất R | Unit/API |
-| TC-06 | S07, AC05 | Member đặt progress 100 rồi gửi Review; A trả lại | 100 không tự Done; A có quyền return, task về In Progress với nhận xét | API/E2E |
+| TC-04 | S05, AC03 | Hai request cùng được duyệt khi còn một chỗ | Một lượt 200, lượt kia 409 `CAPACITY_EXCEEDED` hoặc `VERSION_CONFLICT`; đúng một assignment mới | Integration |
+| TC-05 | S06, AC04 | Tạo/sửa task và thử gỡ A hoặc R cuối đang cần | Giữ đúng một A; thao tác làm mất A/R cần thiết trả 422 `RESPONSIBILITY_REQUIRED` | Unit/API |
+| TC-06 | S07, AC05 | Member đặt progress 100 rồi gửi Review. A thử return thiếu lý do, thiếu progress hoặc progress 100, rồi return hợp lệ | 100 không tự Done; input sai trả 400; return có lý do, progress 0–99 và `expectedVersion` hợp lệ trả 200, task về `IN_PROGRESS` | API/E2E |
 | TC-07 | S08, AC06 | Tạo hai blocker, giải quyết một | Task vẫn Blocked; chỉ hết Blocked khi blocker cuối được giải quyết | API/E2E |
-| TC-08 | S09, AC07 | Tạo A→B→C rồi thử C→A | Từ chối vòng; successor chưa bắt đầu trước predecessor Done | Unit/API |
-| TC-09 | S10, AC08 | Dùng ca P01–P12 trong `CWRM-15_Risk_Rules_POC.md` | Đúng level, rule IDs, evidence, timestamp, biên 0/24/48 giờ | Unit |
+| TC-08 | S09, AC07 | Tạo T1 → T2 → T3 (mũi tên từ predecessor sang successor), rồi thử T3 → T1 | Trả 422 `DEPENDENCY_CYCLE`, không tạo cạnh mới; successor chưa bắt đầu trước predecessor Done | Unit/API |
+| TC-09 | S10, AC08 | Dùng ca P01–P12 trong `CWRM-15_Risk_Rules_POC.md`; truyền `evaluatedAt` cố định | Đúng level, rule IDs, evidence, timestamp và biên 0/24/48 giờ | Unit |
 | TC-10 | S11, AC09 | Risk High rồi Manager sửa dữ liệu làm Low | Snapshot mới, alert cập nhật/resolve, không nhân đôi; giữ lịch sử | Integration/E2E |
 | TC-11 | S12, AC10 | Gọi AI thật với snapshot xác định | Giải thích dựa evidence, 2–3 lựa chọn; model/provider và latency ghi lại | Integration |
-| TC-12 | S12, AC11 | AI timeout/quota/error | Risk/evidence vẫn xem được; lỗi rõ; không thay task/risk; có thể thử lại | Integration/E2E |
+| TC-12 | S12, AC11 | Giả lập timeout, quota, lỗi provider và output sai ở API giải thích | Timeout/quota trả 503, lỗi provider/output trả 502 với mã `AI_*` tương ứng. `details` có `fallbackExplanation`, `retryable` và `recommendationId`; GET current risk vẫn 200 với evidence cũ | Integration/E2E |
 | TC-13 | S12, AC12 | Manager chọn hành động hợp lệ và ghi lý do | Có audit, risk re-evaluate, AI không tự hành động | Integration/E2E |
-| TC-14 | NQ01/02 | Member truy cập API task team khác và kiểm tra frontend bundle | API từ chối; secret AI không có trong client bundle/log | Security |
+| TC-14 | NQ01/02 | Member truy cập API task team khác và kiểm tra frontend bundle | API trả 403 `FORBIDDEN`; secret AI không có trong client bundle/log | Security |
 
 Các ca trên là thiết kế. Chưa có build hoặc môi trường test được xác nhận nên **chưa có Pass/Fail**.
+
+### Ca bổ sung theo review backend
+
+| ID | Phạm vi | Tình huống và kỳ vọng |
+| --- | --- | --- |
+| TC-15 | S05 | Member không đủ role/skill gửi request, nhận 422 `NOT_ELIGIBLE`; không tạo request. |
+| TC-16 | S05 | Member rút request đang `PENDING`, chuyển `WITHDRAWN` và không tạo R. Manager Reject thiếu lý do, nhận 400 và giữ nguyên request. |
+| TC-17 | S04 | Decline thiếu lý do bị từ chối. Số assignment `ACCEPTED` đang hiệu lực cộng `PENDING_ACCEPTANCE` không vượt số người cần, nếu vượt trả 409 `CAPACITY_EXCEEDED`. |
+| TC-18 | S03 | Hai người cùng sửa task với cùng version. Người lưu sau nhận 409 `VERSION_CONFLICT`; dữ liệu lần lưu trước được giữ. |
+| TC-19 | S06–S08 | Gửi Review khi còn blocker mở, nhận 422 `OPEN_BLOCKERS_EXIST`. Member không phải A thử duyệt Done, nhận 403. |
+| TC-20 | S09 | Chặn dependency tự trỏ và dependency khác team. Đồ thị có nhiều đường tới cùng successor chỉ đếm successor một lần. |
+| TC-21 | S12 | Yêu cầu giải thích snapshot `LOW` nhận 422 `AI_SNAPSHOT_LEVEL_NOT_SUPPORTED`; snapshot cũ nhận 409 `SNAPSHOT_NOT_CURRENT`. Kết quả đã lưu hiển thị `isCurrent=false` sau thay đổi làm mất hiệu lực. |
+| TC-22 | S01 | Gỡ hoặc hạ quyền Manager cuối cùng, nhận 422 `LAST_MANAGER_REQUIRED`; giữ membership/quyền hiện có. |
+
+TC-15–TC-22 cũng chưa thực thi. P01–P12 chỉ phủ POC R01–R03. Khi có bộ rule mở rộng, chạy RC01–RC12 từ Scope mục 10.4. Kiểm thử tích hợp dùng seed có deadline tính tương đối theo thời điểm seed.
 
 ## 5. Quy ước Jira Bug
 
@@ -52,6 +67,6 @@ Tạo Bug riêng khi actual khác expected. Tiêu đề: `[Area] Mô tả hành 
 
 ## 6. WSM
 
-`CWRM-17_WSM.xlsx` là bảng WSM 5 tiêu chí với trọng số tổng 100% và công thức tính tự động. Các ô điểm 1–5 để trống cho nhóm chấm có căn cứ; **chưa có điểm khảo sát thực** nên workbook chưa tuyên bố phương án nào thắng. Cần Bảo đối chiếu tiêu chí và phương án với Charter/khảo sát trước khi đưa vào Chương 1.
+`CWRM-17_WSM.xlsx` là bản gốc để truy vết. `CWRM-17_WSM_v2.xlsx` so sánh chatbot tư vấn rủi ro, To-do tích hợp AI và CWRM trên cùng bài toán. Giữ năm tiêu chí với trọng số tổng 100%. Điểm chuyên môn theo đề xuất của Bảo lần lượt là 2,80, 3,75 và 3,75 trên 5. Chọn CWRM khi hòa điểm vì định hướng risk dựa trên evidence và AI hỗ trợ Manager. Workbook ghi căn cứ từng điểm, phân tích độ nhạy và nguồn khảo sát n=6 để hiểu nhu cầu.
 
-**Còn thiếu để đóng Task:** link Drive hoặc nơi lưu chung đã được nhóm chấp nhận, review Test Plan và WSM, dữ liệu điểm có căn cứ (nếu muốn kết luận WSM), bằng chứng trên Jira. Không ghi kết quả test hoặc khảo sát giả.
+**Còn thiếu để đóng Task:** gửi WSM v2 cho Bảo review lần cuối và ghi xác nhận cùng link bản Test Plan/WSM cập nhật trên Drive vào Jira. Phần chạy kiểm thử sẽ ghi kết quả riêng khi có build và môi trường phù hợp.
