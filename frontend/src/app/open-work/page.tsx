@@ -4,6 +4,51 @@ import { StatusBadge } from "@/components/status-badge";
 import { demoMemberProfile, missingOpenWorkRequirements } from "@/lib/demo-data";
 import { listTasks } from "@/lib/api/client";
 
+const monoFont = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+
+function CapacitySlots({
+  reserved,
+  required,
+  remaining,
+}: {
+  reserved: number;
+  required: number;
+  remaining: number;
+}) {
+  const slots = Array.from({ length: required }, (_, index) => index);
+  return (
+    <span className="capacity-slots" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <span
+        role="img"
+        aria-label={`${reserved}/${required} chỗ đã giữ`}
+        style={{ display: "inline-flex", alignItems: "center", gap: 3 }}
+      >
+        {slots.map((slot) => (
+          <span
+            key={slot}
+            style={
+              slot < reserved
+                ? { width: 15, height: 6, borderRadius: 3, background: "var(--success-text)" }
+                : { width: 15, height: 6, borderRadius: 3, border: "1px dashed var(--border-strong)", background: "transparent" }
+            }
+          />
+        ))}
+      </span>
+      <span
+        className="count-label"
+        style={{
+          fontFamily: monoFont,
+          fontSize: 11,
+          letterSpacing: ".02em",
+          color: remaining > 0 ? "var(--success-text)" : "var(--muted)",
+        }}
+      >
+        Còn {remaining}/{required} chỗ
+      </span>
+    </span>
+  );
+}
+
 export default async function OpenWorkPage() {
   const tasks = await listTasks();
   const opportunities = tasks
@@ -43,16 +88,19 @@ export default async function OpenWorkPage() {
           <article className="panel opportunity-card" key={item.id}>
             <div className="task-card-top">
               <span className="task-id">{item.id} · {item.team}</span>
-              <span className="count-label">Còn {item.remainingSlots}/{item.required} chỗ (đã giữ {item.reserved})</span>
+              <CapacitySlots reserved={item.reserved} required={item.required} remaining={item.remainingSlots} />
             </div>
             <h2>{item.title}</h2>
+            {item.requestStatus && (
+              <div className="badge-row" style={{ margin: "-4px 0 12px" }}>
+                <StatusBadge kind="requestStatus" value={item.requestStatus} />
+                <span className="count-label">Request của bạn đang ở trạng thái này</span>
+              </div>
+            )}
             <div className="requirement-row"><span>Role: <strong>{item.requiredRole}</strong></span><span>Skill: <strong>{item.requiredSkills?.join(", ")}</strong></span></div>
             {item.missingRequirements.length === 0 ? (
               <div className="eligibility success">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <strong>Đủ điều kiện</strong>
-                  {item.requestStatus && <StatusBadge kind="requestStatus" value={item.requestStatus} />}
-                </div>
+                <strong>Đủ điều kiện</strong>
                 <span>
                   {item.requestStatus === "Pending"
                     ? "Request đang Pending; chờ Manager duyệt. Pending chưa tạo Assignment Accepted hoặc R."
@@ -67,7 +115,14 @@ export default async function OpenWorkPage() {
             {item.requestStatus === "Pending" ? (
               <div className="button-row">
                 <Link className="button button-secondary" href={`/tasks/${item.id}`}>Xem request và task</Link>
-                <button className="button button-secondary" disabled title="Member có quyền rút request Pending; trạng thái chuyển Withdrawn">Rút request (Withdrawn)</button>
+                <button
+                  className="button button-secondary"
+                  style={{ background: "transparent" }}
+                  disabled
+                  title="Member có quyền rút request Pending; trạng thái chuyển Withdrawn (chờ API)"
+                >
+                  Rút request (Withdrawn)
+                </button>
               </div>
             ) : item.requestStatus === "Withdrawn" ? (
               <div className="button-row">

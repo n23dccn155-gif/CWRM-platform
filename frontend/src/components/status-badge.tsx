@@ -138,15 +138,84 @@ function resolveConfig(value: BadgeValue, kind?: BadgeKind): BadgeConfig {
   );
 }
 
+type DotTone = "danger" | "warning" | "success" | "info" | "violet" | "neutral";
+
+function resolveDotTone(tone: BadgeConfig["tone"], rawValue: string): DotTone {
+  const normalized = rawValue.toUpperCase().trim();
+  // Đỏ: High / Blocked, Critical, Rejected
+  if (
+    tone === "danger" ||
+    normalized === "HIGH" ||
+    normalized === "BLOCKED" ||
+    normalized === "CRITICAL" ||
+    normalized === "REJECTED"
+  ) {
+    return "danger";
+  }
+  // Vàng: Medium / Warning, Review, Pending, Start bị khóa
+  if (
+    tone === "warning" ||
+    normalized === "MEDIUM" ||
+    normalized === "WARNING" ||
+    normalized === "REVIEW" ||
+    normalized.includes("PENDING") ||
+    normalized.includes("START BỊ KHÓA") ||
+    normalized === "START_BLOCKED"
+  ) {
+    return "warning";
+  }
+  // Xanh: Done / Accepted / Low, Approved, Được phép Start
+  if (
+    tone === "success" ||
+    normalized === "DONE" ||
+    normalized === "ACCEPTED" ||
+    normalized === "LOW" ||
+    normalized === "APPROVED" ||
+    normalized.includes("ĐƯỢC PHÉP START") ||
+    normalized === "CAN_START"
+  ) {
+    return "success";
+  }
+  if (tone === "info") {
+    return "info";
+  }
+  if (tone === "violet") {
+    return "violet";
+  }
+  return "neutral";
+}
+
+const dotColorClasses: Record<DotTone, string> = {
+  danger: "status-badge-dot-danger bg-red-500",
+  warning: "status-badge-dot-warning bg-amber-500",
+  success: "status-badge-dot-success bg-emerald-500",
+  info: "status-badge-dot-info bg-sky-500",
+  violet: "status-badge-dot-violet bg-purple-500",
+  neutral: "status-badge-dot-neutral bg-slate-400",
+};
+
 export function StatusBadge({
   value,
   kind,
   label,
+  className = "",
 }: {
   value: BadgeValue;
   kind?: BadgeKind;
   label?: string;
+  className?: string;
 }) {
   const config = resolveConfig(value, kind);
-  return <span className={`status-badge status-${config.tone}`}>{label ?? config.label}</span>;
+  const dotTone = resolveDotTone(config.tone, String(value));
+  const dotClass = dotColorClasses[dotTone];
+  const displayLabel = label ?? config.label;
+
+  return (
+    <span
+      className={`status-badge status-${config.tone} px-2 py-0.5 text-xs font-medium rounded-md inline-flex items-center gap-1.5 ${className}`.trim()}
+    >
+      <span className={`status-badge-dot ${dotClass}`} aria-hidden="true" />
+      <span>{displayLabel}</span>
+    </span>
+  );
 }
