@@ -7,6 +7,7 @@ export default function NewTaskPage() {
   const [mode, setMode] = useState<"DIRECT" | "OPEN_WORK">("DIRECT");
   const [previewed, setPreviewed] = useState(false);
   const [payloadPreview, setPayloadPreview] = useState<Record<string, unknown> | null>(null);
+  const [directInvitee, setDirectInvitee] = useState("");
 
   function handlePreview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -21,14 +22,15 @@ export default function NewTaskPage() {
       priority: String(form.get("priority") ?? "MEDIUM"),
       requiredPeople: Number(form.get("requiredPeople") ?? 1),
       assignmentMode: mode,
-      assigneeUserId: mode === "DIRECT" ? String(form.get("assigneeUserId") ?? "") : undefined,
-      requiredRoleId: mode === "OPEN_WORK" && form.get("requiredRoleId") ? String(form.get("requiredRoleId")) : undefined,
-      requiredSkillId: mode === "OPEN_WORK" && form.get("requiredSkillId") ? String(form.get("requiredSkillId")) : undefined,
+      openWorkOpen: false,
+      requiredRoleIds: mode === "OPEN_WORK" && form.get("requiredRoleId") ? [String(form.get("requiredRoleId"))] : [],
+      requiredSkillIds: mode === "OPEN_WORK" && form.get("requiredSkillId") ? [String(form.get("requiredSkillId"))] : [],
       deadlineType: String(form.get("deadlineType") ?? "FLEXIBLE"),
       description: form.get("description") ? String(form.get("description")) : undefined,
-      estimateHours: form.get("estimate") ? Number(form.get("estimate")) : undefined,
+      effortEstimateHours: form.get("estimate") ? Number(form.get("estimate")) : undefined,
     };
     setPayloadPreview(payload);
+    setDirectInvitee(mode === "DIRECT" ? String(form.get("assigneeUserId") ?? "") : "");
     setPreviewed(true);
   }
 
@@ -82,7 +84,7 @@ export default function NewTaskPage() {
           )}
         </div>
         <details className="advanced-fields">
-          <summary>Thêm mô tả, ước lượng và phụ thuộc</summary>
+          <summary>Thêm mô tả và ước lượng</summary>
           <div className="form-grid conditional-fields">
             <label className="field field-wide">Mô tả và kết quả mong đợi<textarea name="description" rows={3} placeholder="Tiêu chí để A nghiệm thu" /></label>
             <label className="field">
@@ -93,21 +95,20 @@ export default function NewTaskPage() {
               </select>
             </label>
             <label className="field">Effort estimate (giờ)<input name="estimate" type="number" min="0" step="0.5" placeholder="8" /></label>
-            <label className="field">Milestone<input name="milestone" placeholder="Chọn milestone" /></label>
-            <label className="field">Task tiền nhiệm<input name="dependency" placeholder="Finish-to-Start, cùng team" /></label>
           </div>
         </details>
+        <p className="helper-note">Sau khi tạo task, Manager gửi đề nghị Direct hoặc mở Open Work qua thao tác riêng. Milestone và task tiền nhiệm cũng cần dữ liệu thật để chọn; bản nháp này chưa thực hiện các bước đó.</p>
         <div className="form-footer">
           <span>Giao diện nháp: form chưa gửi tới API và không lưu dữ liệu.</span>
           <button className="button button-primary" type="submit">Kiểm tra bản nháp</button>
         </div>
         {previewed && payloadPreview && (
           <div className="inline-notice" role="status">
-            <p><strong>Form hợp lệ ở trình duyệt.</strong> Payload API dự kiến chuẩn CWRM-11:</p>
+            <p><strong>Form hợp lệ ở trình duyệt.</strong> Dữ liệu dự kiến gửi để tạo task theo bản nháp CWRM-11:</p>
             <pre style={{ margin: "8px 0 0", padding: "8px", background: "rgba(0,0,0,0.05)", borderRadius: "4px", fontSize: "12px", overflowX: "auto" }}>
               {JSON.stringify(payloadPreview, null, 2)}
             </pre>
-            <p style={{ marginTop: "6px", fontSize: "12px" }}>Đây chỉ là bản xem trước UI; chưa tạo task hoặc gửi đề nghị nhận việc.</p>
+            <p style={{ marginTop: "6px", fontSize: "12px" }}>ID trong lựa chọn hiện là dữ liệu mẫu, chưa phải UUID hợp lệ. {mode === "DIRECT" ? `Người dự kiến mời: ${directInvitee}. ` : ""}Lời mời Direct dùng API riêng sau khi tạo task. Bản xem trước chưa lưu dữ liệu.</p>
           </div>
         )}
       </form>

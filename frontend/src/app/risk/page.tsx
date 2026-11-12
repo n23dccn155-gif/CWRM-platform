@@ -112,7 +112,7 @@ export default async function RiskPage() {
             <span>Blocker đang mở làm task ở trạng thái Blocked. Trong POC R01–R03, blocker chưa tự kích hoạt rule risk theo thời lượng. Muốn gửi Review phải giải quyết blocker trước.</span>
           </div>
           {snapshot.evaluationError && <p className="warning-line">Lần đánh giá mới gặp lỗi: {snapshot.evaluationError.message ?? snapshot.evaluationError.code}. Evidence của snapshot trước vẫn xem được.</p>}
-          <p className="meta-line">{usingDemoData ? "Schema CWRM-15 là bản ứng viên, đang chờ CWRM-11 chốt API. Dữ liệu trên là ví dụ minh họa." : "Độ mới snapshot lấy từ isCurrent của API; UI không tự tính fingerprint."}</p>
+          <p className="meta-line">{usingDemoData ? "Dữ liệu trên là ví dụ theo fixture CWRM-15 và bản OpenAPI CWRM-11 0.2.0-draft; chưa phải kết quả đánh giá trực tiếp." : "Độ mới snapshot lấy từ isCurrent của API; UI không tự tính fingerprint."}</p>
         </section>
         <section className="panel ai-panel">
           <p className="eyebrow">Advisory only</p>

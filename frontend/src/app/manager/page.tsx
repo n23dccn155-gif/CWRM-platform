@@ -21,50 +21,50 @@ export default async function ManagerPage() {
   return (
     <AppShell>
       <PageHeading
-        eyebrow="Manager / Tổng quan"
-        title="Biết việc nào cần can thiệp"
-        description="Theo dõi trạng thái công việc, người chịu trách nhiệm và bằng chứng rủi ro trong cùng một nơi."
+        eyebrow="TỔNG QUAN / MANAGER"
+        title="Việc cần bạn quyết định"
+        description="Ưu tiên xử lý rủi ro và nghiệm thu trước; toàn bộ công việc nằm ở danh sách bên dưới."
         action={<Link className="button button-primary" href="/tasks/new">+ Tạo công việc</Link>}
       />
 
-      <section className="metric-grid" aria-label="Chỉ số tổng quan">
-        <div className="metric-card"><span>Tổng công việc</span><strong>{demoTasks.length}</strong><small>Trong workspace minh họa</small></div>
-        <div className="metric-card"><span>Đang thực hiện</span><strong>{inProgress.length}</strong><small>Task Status: In Progress</small></div>
-        <div className="metric-card"><span>Đang nghẽn</span><strong>{blocked.length}</strong><small>Có blocker mở</small></div>
-        <div className="metric-card metric-alert"><span>Risk High</span><strong>{highRisk.length}</strong><small>Cần xem evidence</small></div>
-      </section>
-
-      <section className="panel section-gap">
+      <section className="panel priority-panel">
         <div className="section-header">
-          <div><p className="eyebrow">Ưu tiên xử lý</p><h2>Task cần can thiệp · Medium/High</h2></div>
-          <Link href="/risk" className="text-link">Xem chi tiết ({interventionTasks.length} task) →</Link>
+          <div><p className="eyebrow">01 / ƯU TIÊN</p><h2>Công việc có rủi ro</h2></div>
+          <Link href="/risk" className="text-link">Xem bằng chứng ({interventionTasks.length}) →</Link>
         </div>
-        <p className="helper-note" style={{ margin: "0 0 12px" }}>Chỉ hiển thị rủi ro Medium và High. Task Low được giữ ở trạng thái theo dõi thông thường, không nằm trong danh sách cần can thiệp.</p>
+        <p className="section-intro">Chỉ hiện mức Trung bình và Cao. Mở từng công việc để xem dữ liệu dẫn đến cảnh báo.</p>
         {interventionTasks.map((task) => (
-          <div className="risk-row" key={task.id}>
+          <Link className={`risk-row ${task.riskLevel === "Medium" || task.riskLevel === "MEDIUM" ? "risk-row-medium" : ""}`} key={task.id} href={`/tasks/${task.id}`}>
             <div className="risk-indicator" aria-hidden="true" />
             <div className="risk-row-main">
               <strong>{task.title}</strong>
-              <span>{task.id} · {task.team} · R: {task.responsible ?? "Chưa có R"}</span>
+              <span>{task.id} · {task.team} · Người thực hiện: {task.responsible ?? "Chưa có"}</span>
             </div>
-            <div className="risk-row-evidence">{task.deadlineLabel} · Progress {task.progress}% · Priority {task.priority}</div>
+            <div className="risk-row-evidence">Hạn {task.deadlineLabel} · Tiến độ {task.progress}%</div>
             <StatusBadge kind="riskLevel" value={task.riskLevel} />
-          </div>
+          </Link>
         ))}
       </section>
 
       <section className="panel section-gap">
         <div className="section-header">
-          <div><p className="eyebrow">Quyết định của A</p><h2>Hàng chờ Review của A</h2></div>
-          <Link href="/review" className="text-link">{awaitingReview.length} task · Xem luồng →</Link>
+          <div><p className="eyebrow">02 / NGHIỆM THU</p><h2>Chờ bạn duyệt kết quả</h2></div>
+          <Link href="/review" className="text-link">Xem hàng chờ ({awaitingReview.length}) →</Link>
         </div>
         <TaskTable tasks={awaitingReview} />
-        <p className="helper-note">Review chưa phải Done. A (Accountable) cần duyệt Done hoặc trả lại có lý do (progress mới 0-99); các nút xử lý thật chờ API.</p>
+        <p className="helper-note">Trạng thái Review cần A nghiệm thu hoặc trả lại kèm lý do. Chức năng ghi dữ liệu sẽ nối khi API sẵn sàng.</p>
+      </section>
+
+      <section className="metric-grid section-gap" aria-label="Chỉ số tổng quan">
+        <div className="metric-card"><span>Tổng công việc</span><strong>{demoTasks.length}</strong><small>Trong workspace minh họa</small></div>
+        <div className="metric-card"><span>Đang thực hiện</span><strong>{inProgress.length}</strong><small>Đã bắt đầu</small></div>
+        <div className="metric-card"><span>Đang nghẽn</span><strong>{blocked.length}</strong><small>Có blocker cần giải quyết</small></div>
+        <div className="metric-card metric-alert"><span>Rủi ro Cao</span><strong>{highRisk.length}</strong><small>Cần xem bằng chứng</small></div>
       </section>
 
       <section className="panel section-gap">
         <div className="section-header">
-          <div><p className="eyebrow">Tổng hợp</p><h2>Công việc gần đây</h2></div>
+          <div><p className="eyebrow">03 / TỔNG HỢP</p><h2>Công việc gần đây</h2></div>
           <Link href="/tasks" className="text-link">Xem tất cả →</Link>
         </div>
         <TaskTable tasks={demoTasks.slice(0, 4)} />
