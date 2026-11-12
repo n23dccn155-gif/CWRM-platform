@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<rect width="1600" height="1200" fill="#F5F8FB"/>
+<rect x="0" y="0" width="1600" height="138" rx="0" fill="#183153" stroke="#183153" stroke-width="0"/>
+<text x="58" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#96DDD2">CWRM-13  •  SC-04</text>
+<text x="58" y="88" font-family="Arial, sans-serif" font-size="35" font-weight="700" fill="#FFFFFF">Open Work · Member</text>
+<text x="58" y="119" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#D4E4F0">P03 Graphic Designer xem việc trong team, kiểm tra đủ Role/Skill rồi gửi request</text>
+<rect x="60" y="170" width="1480" height="435" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="211" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Thiết kế poster · Campaign Launch</text>
+<line x1="82" y1="252" x2="1518" y2="252" stroke="#C8D3DD" stroke-width="2"/>
+<rect x="90" y="270" width="126" height="34" rx="17" fill="#E5F5F0" stroke="#E5F5F0" stroke-width="1"/>
+<text x="106" y="294" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#0A786B">Còn 1/2 chỗ</text>
+<rect x="285" y="270" width="131" height="34" rx="17" fill="#E5F5F0" stroke="#E5F5F0" stroke-width="1"/>
+<text x="301" y="294" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#0A786B">Đủ điều kiện</text>
+<text x="90" y="357" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Role</text>
+<text x="300" y="359" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Graphic Designer</text>
+<text x="90" y="402" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Skill</text>
+<text x="300" y="404" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Figma</text>
+<text x="90" y="447" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Request của tôi</text>
+<text x="300" y="449" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Pending · chưa tạo R</text>
+<rect x="1120" y="335" width="260" height="47" rx="9" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1135" y="363" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#183153">Rút request</text>
+<text x="90" y="549" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#586A7A">Rút → Withdrawn. Manager chỉ duyệt khi kiểm tra lại eligibility và số chỗ tại thời điểm duyệt.</text>
+<rect x="60" y="635" width="1480" height="400" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="676" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Việc mở khác trong team</text>
+<line x1="82" y1="717" x2="1518" y2="717" stroke="#C8D3DD" stroke-width="2"/>
+<text x="90" y="772" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#1D2B3A">Thiết kế banner phụ</text>
+<rect x="570" y="742" width="126" height="34" rx="17" fill="#E5F5F0" stroke="#E5F5F0" stroke-width="1"/>
+<text x="586" y="766" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#0A786B">Còn 2/2 chỗ</text>
+<rect x="810" y="742" width="174" height="34" rx="17" fill="#FCEDEB" stroke="#FCEDEB" stroke-width="1"/>
+<text x="826" y="766" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#A72C29">Thiếu skill: Figma</text>
+<rect x="1120" y="740" width="270" height="47" rx="9" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1135" y="768" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#183153">Không thể gửi</text>
+<text x="90" y="866" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#586A7A">Chỉ hiển thị task thuộc team của Member; lý do thiếu dùng mã và tham số từ API, UI dịch sang nhãn.</text>
+</svg>

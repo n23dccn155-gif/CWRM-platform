@@ -6,7 +6,7 @@ import { listTasks } from "@/lib/api/client";
 
 export default async function ReviewPage() {
   const demoTasks = await listTasks();
-  const awaitingReview = demoTasks.filter((task) => task.status === "Review");
+  const awaitingReview = demoTasks.filter((task) => task.status === "Review" || task.status === "REVIEW");
   const successors = demoTasks.filter((task) => task.predecessorId);
 
   return (
@@ -23,6 +23,16 @@ export default async function ReviewPage() {
           <span className="count-label">{awaitingReview.length} task</span>
         </div>
         <TaskTable tasks={awaitingReview} />
+        {awaitingReview.map((task) => (
+          <div className="dependency-row" key={`${task.id}-result`}>
+            <div>
+              <strong>{task.title}</strong>
+              <p>Kết quả R nộp: {task.reviewResultText ?? "Chưa có mô tả văn bản"}</p>
+              {task.reviewResultUrl && <a className="text-link" href={task.reviewResultUrl}>Mở liên kết kết quả</a>}
+            </div>
+            <Link className="button button-secondary" href={`/tasks/${task.id}`}>Xem quyết định của A</Link>
+          </div>
+        ))}
         <div className="rule-callout">
           <strong>Hai quyết định hợp lệ</strong>
           <span>Duyệt → Done. Trả lại → In Progress kèm lý do. Progress 100% và Risk High không tự quyết định thay A.</span>
@@ -42,7 +52,7 @@ export default async function ReviewPage() {
               <div className="dependency-row" key={task.id}>
                 <div>
                   <Link className="table-title" href={`/tasks/${task.id}`}>{task.id} · {task.title}</Link>
-                  <p>Tiền nhiệm: {predecessor ? <Link className="text-link" href={`/tasks/${predecessor.id}`}>{predecessor.id}</Link> : task.predecessorId} · {predecessor?.status ?? "Chưa tìm thấy"}</p>
+                  <p>Tiền nhiệm: {predecessor ? <Link className="text-link" href={`/tasks/${predecessor.id}`}>{predecessor.title}</Link> : task.predecessorId} · {predecessor?.status ?? "Chưa tìm thấy"}</p>
                 </div>
                 <div className="dependency-status">
                   <StatusBadge value={unlocked ? "Được phép Start" : "Start bị khóa"} />

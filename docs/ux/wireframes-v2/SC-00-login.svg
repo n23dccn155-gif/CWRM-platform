@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<rect width="1600" height="1200" fill="#F5F8FB"/>
+<rect x="0" y="0" width="1600" height="138" rx="0" fill="#183153" stroke="#183153" stroke-width="0"/>
+<text x="58" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#96DDD2">CWRM-13  •  SC-00</text>
+<text x="58" y="88" font-family="Arial, sans-serif" font-size="35" font-weight="700" fill="#FFFFFF">Đăng nhập</text>
+<text x="58" y="119" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#D4E4F0">Quyền Manager/Member được xác định theo workspace, không theo persona</text>
+<rect x="390" y="220" width="820" height="650" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="412" y="261" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Đăng nhập CWRM</text>
+<line x1="412" y1="302" x2="1188" y2="302" stroke="#C8D3DD" stroke-width="2"/>
+<text x="445" y="367" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Email</text>
+<rect x="445" y="376" width="710" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="459" y="407" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">thanhvien@example.com</text>
+<text x="445" y="482" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Mật khẩu</text>
+<rect x="445" y="491" width="710" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="459" y="522" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">••••••••</text>
+<rect x="445" y="595" width="710" height="47" rx="9" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="460" y="623" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Đăng nhập</text>
+<text x="445" y="699" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#586A7A">Sau đăng nhập: chọn workspace → hệ thống đọc membership → hiện chức</text>
+<text x="445" y="723" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#586A7A">năng Manager hoặc Member.</text>
+<rect x="445" y="785" width="140" height="34" rx="17" fill="#EAF2FC" stroke="#EAF2FC" stroke-width="1"/>
+<text x="461" y="809" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#2A5F9E">P01: Manager</text>
+<rect x="660" y="785" width="170" height="34" rx="17" fill="#EAF2FC" stroke="#EAF2FC" stroke-width="1"/>
+<text x="676" y="809" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#2A5F9E">P02/P03: Member</text>
+</svg>

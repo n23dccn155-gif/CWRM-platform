@@ -6,11 +6,17 @@ import { listTasks } from "@/lib/api/client";
 
 export default async function ManagerPage() {
   const demoTasks = await listTasks();
-  const interventionTasks = demoTasks.filter((task) => task.riskLevel === "High" || task.riskLevel === "Medium");
-  const highRisk = interventionTasks.filter((task) => task.riskLevel === "High");
-  const blocked = demoTasks.filter((task) => task.status === "Blocked");
-  const inProgress = demoTasks.filter((task) => task.status === "In Progress");
-  const awaitingReview = demoTasks.filter((task) => task.status === "Review");
+  const interventionTasks = demoTasks.filter(
+    (task) =>
+      task.riskLevel === "High" ||
+      task.riskLevel === "Medium" ||
+      task.riskLevel === "HIGH" ||
+      task.riskLevel === "MEDIUM"
+  );
+  const highRisk = interventionTasks.filter((task) => task.riskLevel === "High" || task.riskLevel === "HIGH");
+  const blocked = demoTasks.filter((task) => task.status === "Blocked" || task.status === "BLOCKED");
+  const inProgress = demoTasks.filter((task) => task.status === "In Progress" || task.status === "IN_PROGRESS");
+  const awaitingReview = demoTasks.filter((task) => task.status === "Review" || task.status === "REVIEW");
 
   return (
     <AppShell>
@@ -31,28 +37,29 @@ export default async function ManagerPage() {
       <section className="panel section-gap">
         <div className="section-header">
           <div><p className="eyebrow">Ưu tiên xử lý</p><h2>Task cần can thiệp · Medium/High</h2></div>
-          <Link href="/risk" className="text-link">Xem chi tiết →</Link>
+          <Link href="/risk" className="text-link">Xem chi tiết ({interventionTasks.length} task) →</Link>
         </div>
+        <p className="helper-note" style={{ margin: "0 0 12px" }}>Chỉ hiển thị rủi ro Medium và High. Task Low được giữ ở trạng thái theo dõi thông thường, không nằm trong danh sách cần can thiệp.</p>
         {interventionTasks.map((task) => (
           <div className="risk-row" key={task.id}>
             <div className="risk-indicator" aria-hidden="true" />
             <div className="risk-row-main">
               <strong>{task.title}</strong>
-              <span>{task.id} · {task.team} · R: {task.responsible}</span>
+              <span>{task.id} · {task.team} · R: {task.responsible ?? "Chưa có R"}</span>
             </div>
             <div className="risk-row-evidence">{task.deadlineLabel} · Progress {task.progress}% · Priority {task.priority}</div>
-            <StatusBadge value={task.riskLevel} />
+            <StatusBadge kind="riskLevel" value={task.riskLevel} />
           </div>
         ))}
       </section>
 
       <section className="panel section-gap">
         <div className="section-header">
-          <div><p className="eyebrow">Quyết định của A</p><h2>Chờ nghiệm thu</h2></div>
+          <div><p className="eyebrow">Quyết định của A</p><h2>Hàng chờ Review của A</h2></div>
           <Link href="/review" className="text-link">{awaitingReview.length} task · Xem luồng →</Link>
         </div>
         <TaskTable tasks={awaitingReview} />
-        <p className="helper-note">Review chưa phải Done. A cần duyệt hoặc trả lại có lý do; các nút xử lý thật chờ API.</p>
+        <p className="helper-note">Review chưa phải Done. A (Accountable) cần duyệt Done hoặc trả lại có lý do (progress mới 0-99); các nút xử lý thật chờ API.</p>
       </section>
 
       <section className="panel section-gap">

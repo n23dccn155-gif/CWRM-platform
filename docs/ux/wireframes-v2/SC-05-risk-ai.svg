@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1370" viewBox="0 0 1600 1370">
+<rect width="1600" height="1370" fill="#F5F8FB"/>
+<rect x="0" y="0" width="1600" height="138" rx="0" fill="#183153" stroke="#183153" stroke-width="0"/>
+<text x="58" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#96DDD2">CWRM-13  •  SC-05</text>
+<text x="58" y="88" font-family="Arial, sans-serif" font-size="35" font-weight="700" fill="#FFFFFF">Risk evidence và cố vấn AI</text>
+<text x="58" y="119" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#D4E4F0">Thiết kế poster · Task Blocked nhưng risk/evidence vẫn hiển thị</text>
+<rect x="60" y="170" width="1480" height="260" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="211" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Snapshot hiện tại và mức rủi ro</text>
+<line x1="82" y1="252" x2="1518" y2="252" stroke="#C8D3DD" stroke-width="2"/>
+<rect x="90" y="267" width="145" height="34" rx="17" fill="#FFF3E2" stroke="#FFF3E2" stroke-width="1"/>
+<text x="106" y="291" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#A45A0A">Base: Medium</text>
+<rect x="335" y="267" width="119" height="34" rx="17" fill="#FCEDEB" stroke="#FCEDEB" stroke-width="1"/>
+<text x="351" y="291" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#A72C29">Final: High</text>
+<rect x="555" y="267" width="185" height="34" rx="17" fill="#FCEDEB" stroke="#FCEDEB" stroke-width="1"/>
+<text x="571" y="291" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#A72C29">R03 · Priority HIGH</text>
+<text x="90" y="349" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Đánh giá lúc</text>
+<text x="300" y="351" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">2026-11-10 03:00 UTC</text>
+<text x="90" y="399" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#586A7A">isCurrent=true: hiện tại. Nếu false: đánh dấu snapshot/gợi ý AI đã cũ, vẫn giữ evidence.</text>
+<rect x="60" y="455" width="900" height="770" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="496" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Evidence · 7 mục của CWRM-15</text>
+<text x="82" y="522" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#586A7A">Mỗi dòng: id · nguồn/rule · trường · giá trị · đơn vị</text>
+<line x1="82" y1="537" x2="938" y2="537" stroke="#C8D3DD" stroke-width="2"/>
+<text x="85" y="583" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">ev-01</text>
+<text x="190" y="582" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">task</text>
+<text x="360" y="582" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">deadlineAt</text>
+<text x="705" y="582" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1D2B3A">2026-11-11T19:00:00Z</text>
+<text x="705" y="607" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#586A7A">—</text>
+<line x1="85" y1="631" x2="930" y2="631" stroke="#C8D3DD" stroke-width="3"/>
+<text x="85" y="664" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">ev-02</text>
+<text x="190" y="663" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">evaluation</text>
+<text x="360" y="663" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">remainingHours</text>
+<text x="705" y="663" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1D2B3A">40</text>
+<text x="705" y="688" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#586A7A">hours</text>
+<line x1="85" y1="712" x2="930" y2="712" stroke="#C8D3DD" stroke-width="3"/>
+<text x="85" y="745" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">ev-03</text>
+<text x="190" y="744" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">task</text>
+<text x="360" y="744" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">progress</text>
+<text x="705" y="744" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1D2B3A">30</text>
+<text x="705" y="769" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#586A7A">percent</text>
+<line x1="85" y1="793" x2="930" y2="793" stroke="#C8D3DD" stroke-width="3"/>
+<text x="85" y="826" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">ev-04</text>
+<text x="190" y="825" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">impact</text>
+<text x="360" y="825" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">priority</text>
+<text x="705" y="825" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1D2B3A">HIGH</text>
+<text x="705" y="850" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#586A7A">—</text>
+<line x1="85" y1="874" x2="930" y2="874" stroke="#C8D3DD" stroke-width="3"/>
+<text x="85" y="907" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">ev-05</text>
+<text x="190" y="906" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">rule R03</text>
+<text x="360" y="906" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">remainingHoursMinExclusive</text>
+<text x="705" y="906" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1D2B3A">24</text>
+<text x="705" y="931" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#586A7A">hours</text>
+<line x1="85" y1="955" x2="930" y2="955" stroke="#C8D3DD" stroke-width="3"/>
+<text x="85" y="988" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">ev-06</text>
+<text x="190" y="987" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">rule R03</text>
+<text x="360" y="987" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">remainingHoursMaxInclusive</text>
+<text x="705" y="987" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1D2B3A">48</text>
+<text x="705" y="1012" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#586A7A">hours</text>
+<line x1="85" y1="1036" x2="930" y2="1036" stroke="#C8D3DD" stroke-width="3"/>
+<text x="85" y="1069" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">ev-07</text>
+<text x="190" y="1068" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">rule R03</text>
+<text x="360" y="1068" font-family="Arial, sans-serif" font-size="17" font-weight="400" fill="#1D2B3A">progressMaxExclusive</text>
+<text x="705" y="1068" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1D2B3A">50</text>
+<text x="705" y="1093" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#586A7A">percent</text>
+<rect x="985" y="455" width="555" height="770" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1007" y="496" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">AI · chỉ hỗ trợ Manager</text>
+<line x1="1007" y1="537" x2="1518" y2="537" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1010" y="578" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0A786B">Summary · dữ liệu minh họa UI</text>
+<text x="1010" y="611" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">R03 kích hoạt: còn 40 giờ và progress 30%. Priority HIGH</text>
+<text x="1010" y="634" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">nâng Medium lên High.</text>
+<text x="1010" y="698" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#586A7A">Evidence liên kết: ev-02, ev-03, ev-04, ev-05, ev-06, ev-07</text>
+<text x="1010" y="766" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#183153">Phương án 1 · Tháo blocker</text>
+<text x="1010" y="798" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#1D2B3A">Lý do: mở đường hoàn thành poster. Lưu ý: cần Manager xác nhận</text>
+<text x="1010" y="818" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#1D2B3A">nguồn lực.</text>
+<text x="1010" y="878" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#183153">Phương án 2 · Điều chỉnh hạn</text>
+<text x="1010" y="910" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#1D2B3A">Lý do: thêm thời gian. Lưu ý: ảnh hưởng task Chạy quảng cáo.</text>
+<rect x="1010" y="982" width="495" height="122" rx="10" fill="#FFF3E2" stroke="#A45A0A" stroke-width="2"/>
+<text x="1025" y="1012" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#A45A0A">Khi AI lỗi · fallbackExplanation</text>
+<text x="1025" y="1042" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#1D2B3A">Giữ nguyên risk/evidence; hiện diễn giải theo mẫu và nút Thử lại</text>
+<text x="1025" y="1062" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#1D2B3A">nếu retryable.</text>
+<text x="1010" y="1176" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#586A7A">Manager quyết định; sau xử lý hệ thống đánh giá lại risk, không mặc</text>
+<text x="1010" y="1196" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#586A7A">định Low.</text>
+</svg>

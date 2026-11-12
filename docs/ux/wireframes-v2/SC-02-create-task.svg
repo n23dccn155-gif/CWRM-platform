@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<rect width="1600" height="1200" fill="#F5F8FB"/>
+<rect x="0" y="0" width="1600" height="138" rx="0" fill="#183153" stroke="#183153" stroke-width="0"/>
+<text x="58" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#96DDD2">CWRM-13  •  SC-02</text>
+<text x="58" y="88" font-family="Arial, sans-serif" font-size="35" font-weight="700" fill="#FFFFFF">Tạo task</text>
+<text x="58" y="119" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#D4E4F0">Manager tạo task To Do · một A · requiredPeople áp dụng cho cả Direct và Open Work</text>
+<rect x="60" y="170" width="1480" height="915" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="211" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Thông tin công việc</text>
+<line x1="82" y1="252" x2="1518" y2="252" stroke="#C8D3DD" stroke-width="2"/>
+<text x="90" y="307" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Tên task</text>
+<rect x="90" y="316" width="920" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="104" y="347" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Thiết kế poster</text>
+<text x="1040" y="307" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Team</text>
+<rect x="1040" y="316" width="450" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1054" y="347" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Marketing</text>
+<text x="90" y="425" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">A (Accountable)</text>
+<rect x="90" y="434" width="450" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="104" y="465" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">P01 · Marketing Team Lead</text>
+<text x="570" y="425" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Hình thức nhận việc</text>
+<rect x="570" y="434" width="440" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="584" y="465" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">OPEN_WORK</text>
+<text x="1040" y="425" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Số người cần</text>
+<rect x="1040" y="434" width="450" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1054" y="465" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">1</text>
+<text x="90" y="543" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Deadline Type</text>
+<rect x="90" y="552" width="450" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="104" y="583" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">FIXED</text>
+<text x="570" y="543" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Deadline UTC</text>
+<rect x="570" y="552" width="440" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="584" y="583" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">2026-11-11T19:00:00Z</text>
+<text x="1040" y="543" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Priority</text>
+<rect x="1040" y="552" width="450" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1054" y="583" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">HIGH</text>
+<text x="90" y="661" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Role ID yêu cầu</text>
+<rect x="90" y="670" width="680" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="104" y="701" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Graphic Designer</text>
+<text x="810" y="661" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Skill ID yêu cầu</text>
+<rect x="810" y="670" width="680" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="824" y="701" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Figma</text>
+<text x="90" y="779" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Task tiền nhiệm</text>
+<rect x="90" y="788" width="680" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="104" y="819" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Có thể để trống</text>
+<text x="810" y="779" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Milestone</text>
+<rect x="810" y="788" width="680" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="824" y="819" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Campaign Launch</text>
+<text x="90" y="903" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#586A7A">Quy tắc: role khớp ít nhất một; skill phải đủ tất cả. Trường gửi API dùng ID, nhãn chỉ để hiển thị.</text>
+<rect x="1270" y="985" width="220" height="47" rx="9" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="1285" y="1013" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Tạo task</text>
+</svg>

@@ -1,11 +1,35 @@
 /** Dữ liệu minh họa cho UI. RiskSnapshot bám bản schema ứng viên CWRM-15; chưa phải API contract đã chốt. */
-export type TaskStatus = "To Do" | "In Progress" | "Blocked" | "Review" | "Done";
-export type AssignmentStatus = "Pending Acceptance" | "Accepted" | "Declined";
-export type RequestStatus = "Pending" | "Approved" | "Rejected" | "Withdrawn";
-export type RiskLevel = "Low" | "Medium" | "High";
+export type TaskStatus =
+  | "To Do"
+  | "In Progress"
+  | "Blocked"
+  | "Review"
+  | "Done"
+  | "TO_DO"
+  | "IN_PROGRESS"
+  | "BLOCKED"
+  | "REVIEW"
+  | "DONE";
+export type AssignmentStatus =
+  | "Pending Acceptance"
+  | "Accepted"
+  | "Declined"
+  | "PENDING_ACCEPTANCE"
+  | "ACCEPTED"
+  | "DECLINED";
+export type RequestStatus =
+  | "Pending"
+  | "Approved"
+  | "Rejected"
+  | "Withdrawn"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "WITHDRAWN";
+export type RiskLevel = "Low" | "Medium" | "High" | "LOW" | "MEDIUM" | "HIGH" | "Chưa đánh giá";
 export type SnapshotRiskLevel = "LOW" | "MEDIUM" | "HIGH";
-export type AssignmentMode = "Direct" | "Open Work";
-export type Priority = "Low" | "Medium" | "High" | "Critical";
+export type AssignmentMode = "Direct" | "Open Work" | "DIRECT" | "OPEN_WORK";
+export type Priority = "Low" | "Medium" | "High" | "Critical" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export interface TaskSummary {
   id: string;
@@ -32,6 +56,7 @@ export interface TaskSummary {
   requiredPeople?: number;
   reservedPeople?: number;
   predecessorId?: string;
+  predecessorIds?: string[];
   description?: string;
   reviewResultText?: string;
   reviewResultUrl?: string;
@@ -59,16 +84,16 @@ export interface RiskSnapshot {
 
 /** Hồ sơ Member minh họa cho trạng thái eligibility trên Open Work. */
 export const demoMemberProfile = {
-  name: "Thành viên thiết kế",
-  teams: ["Nhóm A"],
-  role: "Designer",
+  name: "Trần An",
+  teams: ["Marketing"],
+  role: "Graphic Designer",
   skills: ["Figma"],
 };
 
 export const demoDirectMemberProfile = {
-  name: "Thành viên nội dung",
-  teams: ["Nhóm A"],
-  role: "Content",
+  name: "Nguyễn Bình",
+  teams: ["Marketing"],
+  role: "Content Specialist",
   skills: ["Writing"],
 };
 
@@ -85,121 +110,134 @@ export function missingOpenWorkRequirements(task: TaskSummary): string[] {
 export const demoTasks: TaskSummary[] = [
   {
     id: "TASK-101",
-    title: "Chuẩn bị tài liệu hướng dẫn",
-    team: "Nhóm A",
+    title: "Viết bài truyền thông chiến dịch",
+    team: "Marketing",
     status: "To Do",
     assignmentMode: "Direct",
     assignmentStatus: "Pending Acceptance",
-    accountable: "Quản lý nhóm",
+    accountable: "Marketing Team Lead",
+    responsibleUserIds: [],
     priority: "Medium",
     progress: 0,
     deadlineLabel: "Còn 5 ngày",
     riskLevel: "Low",
     openBlockers: 0,
-    assignee: "Thành viên nội dung",
-    assignments: [{ id: "as-01", userName: "Thành viên nội dung", status: "Pending Acceptance" }],
-    description: "Chuẩn bị bản hướng dẫn để nhóm có thể triển khai đồng nhất.",
+    assignee: "Nguyễn Bình",
+    requiredPeople: 1,
+    reservedPeople: 0,
+    assignments: [{ id: "as-01", userName: "Nguyễn Bình", status: "Pending Acceptance" }],
+    description: "Bài truyền thông cho Campaign Launch; trạng thái minh họa lời mời Direct.",
   },
   {
     id: "TASK-102",
-    title: "Thiết kế màn hình tổng quan",
-    team: "Nhóm A",
+    title: "Thiết kế poster · chờ duyệt request",
+    team: "Marketing",
     status: "To Do",
     assignmentMode: "Open Work",
     requestStatus: "Pending",
-    requests: [{ id: "rq-01", userName: "Thành viên thiết kế", status: "Pending" }],
-    accountable: "Quản lý nhóm",
+    responsibleUserIds: [],
+    requests: [{ id: "rq-01", userName: "Trần An", status: "Pending" }],
+    accountable: "Marketing Team Lead",
     priority: "Medium",
     progress: 0,
     deadlineLabel: "Còn 6 ngày",
     riskLevel: "Low",
     openBlockers: 0,
-    requiredRole: "Designer",
+    requiredRole: "Graphic Designer",
     requiredSkills: ["Figma"],
     slots: 1,
     requiredPeople: 1,
     reservedPeople: 0,
-    description: "Thiết kế màn hình tổng quan theo yêu cầu của nhóm.",
+    description: "Trạng thái minh họa trước khi Manager duyệt request poster.",
   },
   {
     id: "TASK-103",
-    title: "Hoàn thiện bản thiết kế",
-    team: "Nhóm B",
+    title: "Thiết kế poster",
+    team: "Marketing",
     status: "Blocked",
     assignmentMode: "Open Work",
     assignmentStatus: "Accepted",
     requestStatus: "Approved",
-    accountable: "Quản lý nhóm",
-    responsible: "Thành viên thiết kế",
+    accountable: "Marketing Team Lead",
+    responsible: "Trần An",
     responsibleUserIds: ["member-designer"],
-    assignments: [{ id: "as-02", userName: "Thành viên thiết kế", status: "Accepted" }],
-    requests: [{ id: "rq-02", userName: "Thành viên thiết kế", status: "Approved" }],
+    assignments: [{ id: "as-02", userName: "Trần An", status: "Accepted" }],
+    requests: [{ id: "rq-02", userName: "Trần An", status: "Approved" }, { id: "rq-03", userName: "Lê Mai", status: "Pending" }],
     priority: "High",
     progress: 30,
     deadlineLabel: "Còn 40 giờ",
     riskLevel: "High",
     openBlockers: 1,
-    requiredRole: "Designer",
+    requiredRole: "Graphic Designer",
     requiredSkills: ["Figma"],
-    slots: 1,
-    requiredPeople: 1,
+    slots: 2,
+    requiredPeople: 2,
     reservedPeople: 1,
-    description: "Hoàn thiện thiết kế và bàn giao cho bước triển khai tiếp theo.",
+    description: "Poster Campaign Launch; blocker đang mở, risk R03 mức HIGH và task Chạy quảng cáo phụ thuộc poster Done.",
   },
   {
     id: "TASK-104",
-    title: "Kiểm tra nội dung bàn giao",
-    team: "Nhóm B",
+    title: "Chuẩn bị trang đích chiến dịch",
+    team: "Marketing",
     status: "In Progress",
     assignmentMode: "Direct",
     assignmentStatus: "Accepted",
-    accountable: "Quản lý nhóm",
-    responsible: "Thành viên kiểm thử",
+    accountable: "Marketing Team Lead",
+    responsible: "Lê Mai",
+    responsibleUserIds: ["member-tester"],
     priority: "Low",
     progress: 65,
     deadlineLabel: "Còn 7 ngày",
     riskLevel: "Low",
     openBlockers: 0,
-    assignee: "Thành viên kiểm thử",
-    description: "Rà soát nội dung bàn giao trước khi nghiệm thu.",
+    assignee: "Lê Mai",
+    requiredPeople: 1,
+    reservedPeople: 1,
+    description: "Chuẩn bị trang đích cho Campaign Launch.",
   },
   {
     id: "TASK-105",
-    title: "Gửi kết quả để nghiệm thu",
-    team: "Nhóm A",
+    title: "Viết nội dung chiến dịch",
+    team: "Marketing",
     status: "Review",
     assignmentMode: "Direct",
     assignmentStatus: "Accepted",
-    accountable: "Quản lý nhóm",
-    responsible: "Thành viên nội dung",
+    accountable: "Marketing Team Lead",
+    responsible: "Nguyễn Bình",
     responsibleUserIds: ["member-content"],
-    assignments: [{ id: "as-03", userName: "Thành viên nội dung", status: "Accepted" }],
-    reviewResultText: "Đã hoàn thành nội dung và gửi bản bàn giao cho A nghiệm thu.",
+    assignments: [{ id: "as-03", userName: "Nguyễn Bình", status: "Accepted" }],
+    reviewResultText: "Đã hoàn thành nội dung Campaign Launch và gửi bản bài viết cho A nghiệm thu.",
     priority: "Medium",
     progress: 100,
     deadlineLabel: "Còn 12 giờ",
     riskLevel: "Low",
     openBlockers: 0,
-    assignee: "Thành viên nội dung",
-    description: "Bản bàn giao đã nộp, đang chờ A xem xét kết quả.",
+    assignee: "Nguyễn Bình",
+    requiredPeople: 1,
+    reservedPeople: 1,
+    description: "Bài viết đã nộp, đang chờ A xem xét kết quả.",
   },
   {
     id: "TASK-106",
-    title: "Triển khai sau khi thiết kế hoàn tất",
-    team: "Nhóm B",
+    title: "Chạy quảng cáo",
+    team: "Marketing",
     status: "To Do",
     assignmentMode: "Direct",
     assignmentStatus: "Accepted",
-    accountable: "Quản lý nhóm",
-    responsible: "Thành viên triển khai",
-    assignee: "Thành viên triển khai",
+    accountable: "Marketing Team Lead",
+    responsible: "Lê Mai",
+    responsibleUserIds: ["member-dev"],
+    assignee: "Lê Mai",
     priority: "Medium",
     progress: 0,
     deadlineLabel: "Còn 8 ngày",
     riskLevel: "Low",
     openBlockers: 0,
+    requiredPeople: 1,
+    reservedPeople: 1,
     predecessorId: "TASK-103",
-    description: "Chỉ được bắt đầu sau khi TASK-103 đã được nghiệm thu Done.",
+    predecessorIds: ["TASK-103"],
+    description: "Chỉ được bắt đầu sau khi Thiết kế poster đã được nghiệm thu Done.",
   },
   {
     id: "TASK-107",
@@ -208,6 +246,7 @@ export const demoTasks: TaskSummary[] = [
     status: "To Do",
     assignmentMode: "Open Work",
     accountable: "Quản lý nhóm",
+    responsibleUserIds: [],
     priority: "Low",
     progress: 0,
     deadlineLabel: "Còn 9 ngày",
@@ -222,22 +261,23 @@ export const demoTasks: TaskSummary[] = [
   },
   {
     id: "TASK-108",
-    title: "Thiết kế bộ biểu tượng sản phẩm",
-    team: "Nhóm A",
+    title: "Thiết kế banner phụ",
+    team: "Marketing",
     status: "To Do",
     assignmentMode: "Open Work",
-    accountable: "Quản lý nhóm",
+    accountable: "Marketing Team Lead",
+    responsibleUserIds: [],
     priority: "Medium",
     progress: 0,
     deadlineLabel: "Còn 10 ngày",
     riskLevel: "Low",
     openBlockers: 0,
-    requiredRole: "Designer",
-    requiredSkills: ["Figma"],
+    requiredRole: "Graphic Designer",
+    requiredSkills: ["Illustrator"],
     slots: 1,
     requiredPeople: 1,
     reservedPeople: 0,
-    description: "Việc mở đủ điều kiện nhưng Member chưa gửi request.",
+    description: "Việc mở cùng team, nhưng Member minh họa còn thiếu skill Illustrator.",
   },
 ];
 

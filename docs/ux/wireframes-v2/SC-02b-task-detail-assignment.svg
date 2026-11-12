@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1370" viewBox="0 0 1600 1370">
+<rect width="1600" height="1370" fill="#F5F8FB"/>
+<rect x="0" y="0" width="1600" height="138" rx="0" fill="#183153" stroke="#183153" stroke-width="0"/>
+<text x="58" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#96DDD2">CWRM-13  •  SC-02b</text>
+<text x="58" y="88" font-family="Arial, sans-serif" font-size="35" font-weight="700" fill="#FFFFFF">Task detail và phân công</text>
+<text x="58" y="119" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#D4E4F0">Thiết kế poster · Open Work · Manager quản lý request, nhiều R và sức chứa</text>
+<rect x="60" y="170" width="910" height="286" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="211" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Thông tin task</text>
+<line x1="82" y1="252" x2="948" y2="252" stroke="#C8D3DD" stroke-width="2"/>
+<text x="86" y="290" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Task Status</text>
+<text x="296" y="292" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Blocked</text>
+<text x="86" y="329" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">A</text>
+<text x="296" y="331" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Marketing Team Lead</text>
+<text x="86" y="368" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">R Accepted</text>
+<text x="296" y="370" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Trần An (Graphic Designer)</text>
+<text x="86" y="407" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Sức chứa</text>
+<text x="296" y="409" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Cần 2 · đã giữ 1 · còn 1</text>
+<rect x="995" y="170" width="545" height="286" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1017" y="211" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Risk và tiến độ</text>
+<line x1="1017" y1="252" x2="1518" y2="252" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1020" y="290" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Progress</text>
+<text x="1230" y="292" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">30%</text>
+<text x="1020" y="329" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Risk</text>
+<text x="1230" y="331" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">High · R03</text>
+<text x="1020" y="368" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Blocker mở</text>
+<text x="1230" y="370" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">1</text>
+<rect x="1020" y="392" width="225" height="47" rx="9" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1035" y="420" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#183153">Xem evidence</text>
+<rect x="60" y="482" width="1480" height="440" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="523" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Danh sách request / assignment</text>
+<text x="82" y="549" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#586A7A">Mỗi người một dòng; Request Pending chưa tạo R</text>
+<line x1="82" y1="564" x2="1518" y2="564" stroke="#C8D3DD" stroke-width="2"/>
+<text x="86" y="602" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#586A7A">Người</text>
+<text x="480" y="602" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#586A7A">Loại</text>
+<text x="720" y="602" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#586A7A">Trạng thái</text>
+<text x="1030" y="602" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#586A7A">Thao tác Manager</text>
+<line x1="85" y1="618" x2="1510" y2="618" stroke="#C8D3DD" stroke-width="3"/>
+<text x="86" y="664" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#1D2B3A">Trần An</text>
+<text x="480" y="663" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Assignment</text>
+<rect x="720" y="640" width="106" height="34" rx="17" fill="#E5F5F0" stroke="#E5F5F0" stroke-width="1"/>
+<text x="736" y="664" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#0A786B">Accepted</text>
+<rect x="1030" y="636" width="300" height="47" rx="9" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1045" y="664" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#183153">Kết thúc + lý do</text>
+<line x1="85" y1="705" x2="1510" y2="705" stroke="#C8D3DD" stroke-width="3"/>
+<text x="86" y="749" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#1D2B3A">Lê Mai</text>
+<text x="480" y="748" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Open Work request</text>
+<rect x="720" y="725" width="97" height="34" rx="17" fill="#FFF3E2" stroke="#FFF3E2" stroke-width="1"/>
+<text x="736" y="749" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#A45A0A">Pending</text>
+<rect x="1030" y="721" width="145" height="47" rx="9" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="1045" y="749" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Duyệt</text>
+<rect x="1190" y="721" width="250" height="47" rx="9" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1205" y="749" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#183153">Từ chối + lý do</text>
+<text x="86" y="827" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Lý do khi từ chối / kết thúc</text>
+<rect x="86" y="836" width="640" height="50" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="100" y="867" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Bắt buộc khi chọn thao tác</text>
+<text x="760" y="860" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#586A7A">Khi duyệt: kiểm tra lại role/skill, số chỗ và phiên bản task.</text>
+<rect x="60" y="950" width="1480" height="305" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="991" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Direct Assignment · trạng thái thay thế của cùng màn</text>
+<text x="82" y="1017" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#586A7A">Chỉ hiện khi task dùng DIRECT; không hiển thị đồng thời với bảng Open Work ở trên</text>
+<line x1="82" y1="1032" x2="1518" y2="1032" stroke="#C8D3DD" stroke-width="2"/>
+<text x="86" y="1080" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#1D2B3A">Member A · Pending Acceptance</text>
+<rect x="720" y="1048" width="300" height="47" rx="9" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="735" y="1076" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#183153">Đóng đề nghị + lý do</text>
+<rect x="1040" y="1048" width="250" height="47" rx="9" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="1055" y="1076" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Gửi đề nghị mới</text>
+<text x="86" y="1155" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#586A7A">Manager trong workspace được giao việc, duyệt request và xử lý risk; A là người chịu trách nhiệm/nghiệm thu.</text>
+</svg>

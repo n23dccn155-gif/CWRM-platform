@@ -117,12 +117,22 @@ export default async function RiskPage() {
         <section className="panel ai-panel">
           <p className="eyebrow">Advisory only</p>
           <h2>Cố vấn AI</h2>
-          <p>Ở bản hoàn chỉnh, Manager có thể yêu cầu AI giải thích snapshot này bằng các evidence ID và nhận 2–3 phương án. Nếu task đổi, gợi ý gắn với fingerprint cũ phải được đánh dấu hết hiệu lực.</p>
-          <div className="ai-placeholder">
-            <strong>Chưa kết nối AI API</strong>
-            <span>Khi API lỗi, risk level và evidence vẫn xem được; Manager có thể thử lại sau.</span>
+          <p>AI chỉ giải thích snapshot; Manager kiểm tra evidence gốc trước khi chọn cách xử lý. Gợi ý của snapshot cũ phải được đánh dấu hết hiệu lực.</p>
+          {usingDemoData && (
+            <div className="ai-placeholder">
+              <strong>Ví dụ hiển thị · chưa phải phản hồi AI thật</strong>
+              <span>Tóm tắt: R03 kích hoạt vì còn 40 giờ đến hạn và progress 30%; priority HIGH nâng Medium lên High.</span>
+              <span>Evidence liên kết: ev-02, ev-03, ev-04, ev-05, ev-06, ev-07.</span>
+              <span>Phương án 1 — Tháo blocker. Lý do: khôi phục khả năng hoàn thành poster. Lưu ý: cần xác nhận nguồn lực và thời gian thực tế.</span>
+              <span>Phương án 2 — Điều chỉnh hạn. Lý do: tạo thêm thời gian xử lý. Lưu ý: có thể ảnh hưởng task Chạy quảng cáo phụ thuộc poster.</span>
+            </div>
+          )}
+          <div className="rule-callout">
+            <strong>Khi AI lỗi</strong>
+            <span>Risk và evidence vẫn hiển thị. Hiện details.fallbackExplanation nếu API trả về; chỉ cho Thử lại khi retryable=true.</span>
           </div>
           <button className="button button-primary" disabled title="Chưa kết nối API">Yêu cầu giải thích</button>
+          <button className="button button-secondary" disabled title="Chỉ mở khi lỗi cho phép thử lại">Thử lại</button>
           <p className="helper-note">Hành động xử lý cần kiểm tra quyền Manager, ghi lý do và audit, sau đó đánh giá lại risk. Kết quả không mặc định trở về Low.</p>
         </section>
       </div>

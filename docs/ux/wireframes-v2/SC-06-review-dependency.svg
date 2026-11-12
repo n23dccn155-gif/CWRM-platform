@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1260" viewBox="0 0 1600 1260">
+<rect width="1600" height="1260" fill="#F5F8FB"/>
+<rect x="0" y="0" width="1600" height="138" rx="0" fill="#183153" stroke="#183153" stroke-width="0"/>
+<text x="58" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#96DDD2">CWRM-13  •  SC-06</text>
+<text x="58" y="88" font-family="Arial, sans-serif" font-size="35" font-weight="700" fill="#FFFFFF">Review và dependency</text>
+<text x="58" y="119" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#D4E4F0">A nghiệm thu kết quả · Poster Done mới mở quyền Start cho Chạy quảng cáo</text>
+<rect x="60" y="170" width="1480" height="365" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="211" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Thiết kế poster · Task Status: Review</text>
+<line x1="82" y1="252" x2="1518" y2="252" stroke="#C8D3DD" stroke-width="2"/>
+<text x="90" y="289" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">R nộp</text>
+<text x="300" y="291" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Trần An · 100% · 0 blocker</text>
+<text x="90" y="337" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Kết quả văn bản</text>
+<text x="300" y="339" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Poster hoàn tất theo brief Campaign Launch</text>
+<text x="90" y="385" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Liên kết</text>
+<text x="300" y="387" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">figma.com/design/.../poster-final</text>
+<text x="90" y="463" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#586A7A">A xem kết quả trước khi quyết định. Risk High không tự chặn Review hoặc tự duyệt Done.</text>
+<rect x="60" y="560" width="1480" height="320" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="601" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Quyết định của A</text>
+<line x1="82" y1="642" x2="1518" y2="642" stroke="#C8D3DD" stroke-width="2"/>
+<text x="90" y="682" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Lý do trả lại · bắt buộc</text>
+<rect x="90" y="691" width="780" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="104" y="722" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">Ví dụ: chỉnh lại nội dung CTA</text>
+<text x="900" y="682" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Progress mới</text>
+<rect x="900" y="691" width="255" height="52" rx="8" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="914" y="722" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#1D2B3A">80 (0–99)</text>
+<rect x="1190" y="696" width="260" height="47" rx="9" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="1205" y="724" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#183153">Trả lại</text>
+<rect x="90" y="785" width="250" height="47" rx="9" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="105" y="813" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Duyệt Done</text>
+<text x="370" y="812" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#586A7A">Trả lại → In Progress; Duyệt → Done. Chỉ A của task thực hiện hai thao tác này.</text>
+<rect x="60" y="905" width="1480" height="245" rx="18" fill="#FFFFFF" stroke="#C8D3DD" stroke-width="2"/>
+<text x="82" y="946" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#183153">Finish-to-Start · Chạy quảng cáo</text>
+<line x1="82" y1="987" x2="1518" y2="987" stroke="#C8D3DD" stroke-width="2"/>
+<text x="90" y="1027" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Tiền nhiệm</text>
+<text x="300" y="1029" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Thiết kế poster</text>
+<text x="90" y="1072" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#586A7A">Start</text>
+<text x="300" y="1074" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Bị khóa tới khi poster Done; sau đó Member phải tự bấm</text>
+<text x="300" y="1098" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Start</text>
+</svg>

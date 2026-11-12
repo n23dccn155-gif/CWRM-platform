@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1090" viewBox="0 0 1600 1090">
+<rect width="1600" height="1090" fill="#F5F8FB"/>
+<rect x="0" y="0" width="1600" height="138" rx="0" fill="#183153" stroke="#183153" stroke-width="0"/>
+<text x="58" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#96DDD2">CWRM-13  •  USER FLOW</text>
+<text x="58" y="88" font-family="Arial, sans-serif" font-size="35" font-weight="700" fill="#FFFFFF">04 · Review và dependency</text>
+<text x="58" y="119" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#D4E4F0">R nộp kết quả · A duyệt/trả lại · successor được phép Start</text>
+<rect x="90" y="175" width="730" height="91" rx="13" fill="#FFF3E2" stroke="#A45A0A" stroke-width="2"/>
+<rect x="90" y="175" width="9" height="91" rx="4" fill="#A45A0A" stroke="#A45A0A" stroke-width="2"/>
+<text x="113" y="201" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#A45A0A">HỆ THỐNG</text>
+<text x="113" y="233" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1D2B3A">Task tiền nhiệm Thiết kế poster đã Done?</text>
+<line x1="455" y1="267" x2="455" y2="294" stroke="#C8D3DD" stroke-width="3"/>
+<path d="M455 294 L445 280 L465 280 Z" fill="#C8D3DD"/>
+<line x1="820" y1="220" x2="885" y2="220" stroke="#A45A0A" stroke-width="3"/>
+<rect x="895" y="175" width="605" height="92" rx="13" fill="#FCEDEB" stroke="#A72C29" stroke-width="2"/>
+<text x="913" y="201" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#A72C29">Chưa Done</text>
+<text x="913" y="230" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Khóa Start và nêu rõ task tiền nhiệm</text>
+<rect x="90" y="295" width="730" height="91" rx="13" fill="#FFFFFF" stroke="#183153" stroke-width="2"/>
+<rect x="90" y="295" width="9" height="91" rx="4" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="113" y="321" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#183153">MEMBER R</text>
+<text x="113" y="353" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1D2B3A">Start và hoàn thành công việc</text>
+<line x1="455" y1="387" x2="455" y2="414" stroke="#C8D3DD" stroke-width="3"/>
+<path d="M455 414 L445 400 L465 400 Z" fill="#C8D3DD"/>
+<rect x="90" y="415" width="730" height="91" rx="13" fill="#FFF3E2" stroke="#A45A0A" stroke-width="2"/>
+<rect x="90" y="415" width="9" height="91" rx="4" fill="#A45A0A" stroke="#A45A0A" stroke-width="2"/>
+<text x="113" y="441" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#A45A0A">HỆ THỐNG</text>
+<text x="113" y="473" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1D2B3A">Progress 100% và hết mọi blocker?</text>
+<line x1="455" y1="507" x2="455" y2="534" stroke="#C8D3DD" stroke-width="3"/>
+<path d="M455 534 L445 520 L465 520 Z" fill="#C8D3DD"/>
+<line x1="820" y1="460" x2="885" y2="460" stroke="#A45A0A" stroke-width="3"/>
+<rect x="895" y="415" width="605" height="92" rx="13" fill="#FCEDEB" stroke="#A72C29" stroke-width="2"/>
+<text x="913" y="441" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#A72C29">Chưa đủ</text>
+<text x="913" y="470" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">Khóa Review; hiển thị progress và blocker mở</text>
+<rect x="90" y="535" width="730" height="91" rx="13" fill="#FFFFFF" stroke="#183153" stroke-width="2"/>
+<rect x="90" y="535" width="9" height="91" rx="4" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="113" y="561" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#183153">MEMBER R</text>
+<text x="113" y="593" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1D2B3A">Gửi Review với resultText hoặc resultUrl</text>
+<line x1="455" y1="627" x2="455" y2="654" stroke="#C8D3DD" stroke-width="3"/>
+<path d="M455 654 L445 640 L465 640 Z" fill="#C8D3DD"/>
+<rect x="90" y="655" width="730" height="91" rx="13" fill="#FFF3E2" stroke="#A45A0A" stroke-width="2"/>
+<rect x="90" y="655" width="9" height="91" rx="4" fill="#A45A0A" stroke="#A45A0A" stroke-width="2"/>
+<text x="113" y="681" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#A45A0A">A</text>
+<text x="113" y="713" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1D2B3A">Xem kết quả và quyết định nghiệm thu</text>
+<line x1="455" y1="747" x2="455" y2="774" stroke="#C8D3DD" stroke-width="3"/>
+<path d="M455 774 L445 760 L465 760 Z" fill="#C8D3DD"/>
+<line x1="820" y1="700" x2="885" y2="700" stroke="#A45A0A" stroke-width="3"/>
+<rect x="895" y="655" width="605" height="92" rx="13" fill="#FCEDEB" stroke="#A72C29" stroke-width="2"/>
+<text x="913" y="681" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#A72C29">Trả lại</text>
+<text x="913" y="710" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#1D2B3A">A nhập lý do và progress mới 0–99 → In Progress</text>
+<rect x="90" y="775" width="730" height="91" rx="13" fill="#E5F5F0" stroke="#0A786B" stroke-width="2"/>
+<rect x="90" y="775" width="9" height="91" rx="4" fill="#0A786B" stroke="#0A786B" stroke-width="2"/>
+<text x="113" y="801" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#0A786B">HỆ THỐNG</text>
+<text x="113" y="833" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1D2B3A">Duyệt → Task Done</text>
+<line x1="455" y1="867" x2="455" y2="894" stroke="#C8D3DD" stroke-width="3"/>
+<path d="M455 894 L445 880 L465 880 Z" fill="#C8D3DD"/>
+<rect x="90" y="895" width="730" height="91" rx="13" fill="#FFFFFF" stroke="#183153" stroke-width="2"/>
+<rect x="90" y="895" width="9" height="91" rx="4" fill="#183153" stroke="#183153" stroke-width="2"/>
+<text x="113" y="921" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#183153">MEMBER R</text>
+<text x="113" y="953" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1D2B3A">Task Chạy quảng cáo nay được phép Start</text>
+<rect x="62" y="1001" width="1476" height="60" rx="12" fill="#EAF2FC" stroke="#EAF2FC" stroke-width="2"/>
+<text x="82" y="1037" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#183153">Risk High không tự quyết định nghiệm thu. Done chỉ mở quyền Start, không tự Start successor.</text>
+</svg>
