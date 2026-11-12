@@ -1,15 +1,18 @@
 {
-  "taskId": "MKT-POSTER-01",
-  "riskLevel": "High",
-  "baseLevel": "Medium",
+  "taskId": "550e8400-e29b-41d4-a716-446655440103",
+  "riskLevel": "HIGH",
+  "baseLevel": "MEDIUM",
   "evaluatedAt": "2026-11-10T03:00:00Z",
   "ruleVersion": "candidate-v0.1-r01-r03",
   "triggeredRules": ["R03"],
-  "inputFingerprint": "example-only-not-a-real-hash",
+  "inputFingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
   "evidence": [
-    {"id": "ev-01", "source": "task", "ruleId": "R03", "field": "deadline", "value": "2026-11-11T19:00:00Z"},
+    {"id": "ev-01", "source": "task", "ruleId": "R03", "field": "deadlineAt", "value": "2026-11-11T19:00:00Z"},
     {"id": "ev-02", "source": "evaluation", "ruleId": "R03", "field": "remainingHours", "value": 40, "unit": "hours"},
     {"id": "ev-03", "source": "task", "ruleId": "R03", "field": "progress", "value": 30, "unit": "percent"},
-    {"id": "ev-04", "source": "impact", "field": "priority", "value": "High"}
+    {"id": "ev-04", "source": "impact", "field": "priority", "value": "HIGH"},
+    {"id": "ev-05", "source": "rule", "ruleId": "R03", "field": "remainingHoursMinExclusive", "value": 24, "unit": "hours"},
+    {"id": "ev-06", "source": "rule", "ruleId": "R03", "field": "remainingHoursMaxInclusive", "value": 48, "unit": "hours"},
+    {"id": "ev-07", "source": "rule", "ruleId": "R03", "field": "progressMaxExclusive", "value": 50, "unit": "percent"}
   ]
 }

@@ -1,18 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cwrm.example/schemas/risk-result-poc-v0.1.json",
-  "title": "CWRM Risk Result POC candidate v0.1",
+  "$id": "https://cwrm.example/schemas/risk-result-poc-v0.2.json",
+  "title": "CWRM Risk Engine Result POC candidate v0.2",
+  "description": "Engine result before the API adds the snapshot id and triggerSource.",
   "type": "object",
   "additionalProperties": false,
   "required": ["taskId", "riskLevel", "baseLevel", "evaluatedAt", "ruleVersion", "triggeredRules", "evidence", "inputFingerprint"],
   "properties": {
     "taskId": {"type": "string", "minLength": 1},
-    "riskLevel": {"enum": ["Low", "Medium", "High"]},
-    "baseLevel": {"enum": ["Low", "Medium", "High"]},
-    "evaluatedAt": {"type": "string", "format": "date-time"},
+    "riskLevel": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+    "baseLevel": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+    "evaluatedAt": {"type": "string", "format": "date-time", "pattern": "Z$"},
     "ruleVersion": {"type": "string", "minLength": 1},
-    "triggeredRules": {"type": "array", "uniqueItems": true, "items": {"enum": ["R01", "R02", "R03"]}},
-    "inputFingerprint": {"type": "string", "minLength": 1, "description": "Stable digest of inputs used by this evaluation; algorithm pending API decision"},
+    "triggeredRules": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/ruleId"}},
+    "inputFingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "Backend digest of normalized evaluation inputs. The fixture uses an illustrative digest."},
     "evidence": {
       "type": "array",
       "items": {
@@ -22,12 +23,15 @@
         "properties": {
           "id": {"type": "string", "minLength": 1},
           "source": {"enum": ["task", "evaluation", "rule", "impact"]},
-          "ruleId": {"enum": ["R01", "R02", "R03"]},
+          "ruleId": {"$ref": "#/$defs/ruleId"},
           "field": {"type": "string", "minLength": 1},
           "value": {"type": ["string", "number", "boolean", "null"]},
           "unit": {"type": "string"}
         }
       }
     }
+  },
+  "$defs": {
+    "ruleId": {"type": "string", "pattern": "^R(0[1-9]|1[0-2])$"}
   }
 }

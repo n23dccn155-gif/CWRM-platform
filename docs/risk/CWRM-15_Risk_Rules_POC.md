@@ -1,6 +1,6 @@
 # CWRM-15 — Đặc tả POC Risk Engine và evidence
 
-**Trạng thái:** bản nháp để Khôi (backend) và Hiệp (UI) review, 10/11/2026.
+**Trạng thái:** bản cập nhật 12/11/2026 sau review của Khôi và Hiệp, chờ đối chiếu lại với contract CWRM-11.
 
 **Nguồn nghiệp vụ:** `00_Project_Scope_v0.1_ORIGINAL_UNCHANGED.md`, mục 10.
 **Phạm vi:** R01–R03 là ba rule đầu để kiểm chứng hợp đồng dữ liệu. Scope v0.1 còn R04–R12; POC này không thay đổi phạm vi nghiệm thu cuối. Tên trường/schema là đề xuất, chờ CWRM-11 chốt API/ERD.
@@ -9,7 +9,7 @@
 
 - Risk Engine chỉ đọc task context; Manager không nhập/sửa risk level hay score. AI cũng không tính hoặc sửa risk.
 - Đánh giá task chưa `Done`. Task `Done` giữ snapshot lịch sử nhưng không có risk đang hoạt động.
-- `remainingHours = (deadline - evaluatedAt)` tính bằng giờ liên tục, dùng thời điểm UTC; số âm là quá hạn. Ở biên 0, 24 và 48 giờ, dùng đúng dấu so sánh bên dưới.
+- Tính chênh lệch `deadlineAt - evaluatedAt` bằng mili giây từ hai thời điểm UTC. So sánh chênh lệch chưa làm tròn với 0, 24 × 3.600.000 và 48 × 3.600.000 mili giây. Chỉ làm tròn giá trị giờ khi ghi evidence hoặc hiển thị.
 - `progress` nằm trong khoảng 0–100. Thiếu deadline/progress hoặc giá trị sai miền: báo lỗi dữ liệu, **không** thay bằng 0 và không phát snapshot mới giả hợp lệ.
 - Chạy các rule độc lập; mức cơ sở lấy cao nhất theo `Low < Medium < High`. Không rule nào kích hoạt thì `Low`. Sau đó, chỉ khi mức cơ sở `Medium`, nâng một lần lên `High` nếu `priority` là `High/Critical`, `deadlineType` là `Fixed`, hoặc `affectedTasks >= 3`. Ghi evidence cho điều kiện nâng mức. Các điều kiện này không tự tạo risk từ `Low`.
 - R01–R03 dùng deadline/progress; blocker và dependency phải được giữ trong task context để R04–R07 bổ sung sau. POC không suy diễn risk từ blocker/dependency khi các rule đó chưa triển khai.
@@ -26,7 +26,13 @@ Một task có thể kích hoạt nhiều rule khi mở rộng R04–R12; `trigg
 
 ## 3. Hợp đồng dữ liệu đề xuất
 
-File `CWRM-15_risk-result.schema.json` là JSON Schema để backend và UI thảo luận; chưa phải API Contract đã duyệt. Mỗi snapshot có `taskId`, `riskLevel`, `baseLevel`, `evaluatedAt`, `ruleVersion`, `triggeredRules`, `evidence` và `inputFingerprint`. `inputFingerprint` giúp phát hiện kết quả AI đã cũ khi dữ liệu task thay đổi; thuật toán hash do CWRM-11/CWRM-16 chốt. ID evidence cho phép AI liên kết nguyên nhân với dữ liệu nguồn. Giá trị `Low` vẫn tạo snapshot với `triggeredRules: []` và `evidence: []` nếu đầu vào hợp lệ.
+File `CWRM-15_risk-result.schema.json` mô tả kết quả engine đã được backend bổ sung fingerprint. API `RiskSnapshot` dùng kết quả này và thêm UUID `id` cùng `triggerSource` (`EVENT`, `HOURLY`, `MANUAL`). Đọc schema API chính thức từ [CWRM-11](https://ddinhbao05.atlassian.net/browse/CWRM-11). Schema nhận rule ID R01–R12 để mở rộng, còn POC hiện chỉ đặc tả R01–R03. `riskLevel`, `baseLevel` và evidence dạng enum dùng mã chữ hoa. `evaluatedAt` và các giá trị thời gian trong evidence dùng UTC ISO-8601 kết thúc bằng `Z`.
+
+Backend dự kiến tính `inputFingerprint` theo dạng `sha256:<hex-64>` từ dữ liệu gốc đã chuẩn hóa và `ruleVersion`. Mẫu poster dùng digest minh họa. ID evidence ổn định trong một snapshot. Với đầu vào hợp lệ và không có rule kích hoạt, `LOW` có `triggeredRules: []` và `evidence: []`.
+
+Tên evidence dùng camelCase. Giá trị deadline dùng `deadlineAt`, tiến độ dùng `progress` (percent), thời gian tính ra dùng `remainingHours` hoặc `overdueHours` (hours), điều kiện nâng dùng `priority`, `deadlineType` hoặc `affectedTaskCount`. Ngưỡng dùng evidence `source: rule` với `remainingHoursMinExclusive`, `remainingHoursMaxInclusive` và `progressMaxExclusive` theo rule tương ứng. Tên trường và đơn vị dùng chung giữa UI và POC AI.
+
+Theo draft CWRM-11, GET current trả `isCurrent` và `evaluationError`. Đầu vào sai trả 422 `RISK_INPUT_INVALID` khi đánh giá thủ công. Lỗi engine trả 503 `RISK_EVALUATION_FAILED`. Lần đánh giá lỗi không tạo snapshot. Nếu lỗi xảy ra sau cập nhật nghiệp vụ hợp lệ, đề xuất giữ cập nhật và đánh dấu snapshot cũ `isCurrent=false`.
 
 Ví dụ poster Marketing: tại `2026-11-10T03:00:00Z`, deadline `2026-11-11T19:00:00Z` (còn 40 giờ), progress 30, priority High, deadlineType Flexible. R03 tạo mức cơ sở Medium; priority High nâng kết quả thành High. UI nên hiển thị: **High — còn 40 giờ, tiến độ 30%; nâng mức vì ưu tiên High**; người dùng có thể mở chi tiết rule R03, thời điểm đánh giá và dữ liệu evidence. Blocker của poster chỉ là ngữ cảnh ở POC này; chưa được dùng để kích hoạt R04/R05.
 
@@ -51,10 +57,6 @@ Tất cả ca độc lập, task `In Progress`, priority `Medium`, deadlineType 
 
 Kiểm thử backend cần xác nhận `evaluatedAt` và `ruleVersion` cố định cho cùng một lần đánh giá; cùng input và thời điểm cho cùng kết quả/evidence. Khi Manager đổi deadline, progress, priority hoặc giải quyết blocker, hệ thống đánh giá lại từ dữ liệu mới và không để AI recommendation của snapshot cũ được coi là hiện hành.
 
-## 5. Việc cần review trước khi chốt CWRM-15
+## 5. Kết quả review và xác nhận tiếp theo
 
-1. **Khôi:** đối chiếu tên trường, UTC, fingerprint, cấu trúc evidence và error response với ERD/OpenAPI CWRM-11; xác nhận nơi lưu snapshot/ruleVersion.
-2. **Hiệp:** xác nhận UI có thể hiển thị level, lý do ngắn, từng evidence, `evaluatedAt` và trạng thái dữ liệu cũ; không hiển thị risk score do Manager tự nhập.
-3. **Bảo/nhóm:** duyệt ngưỡng và cơ chế nâng mức từ Scope v0.1 trong Scope v0.2 hoặc ghi Change Request. Sau review, cập nhật schema/API/fixture và comment liên kết bằng chứng trên Jira.
-
-**Chưa hoàn thành:** chưa có xác nhận của Khôi/Hiệp, chưa có API chạy hoặc test execution. Các ca trên là *test design*, không phải kết quả test đã chạy.
+Khôi đã đối chiếu rule, 12 ca thiết kế và schema với draft CWRM-11. Hiệp đã xác nhận UI local hiển thị ví dụ poster. Bản cập nhật này xử lý các điểm hai bạn nêu trên [CWRM-15](https://ddinhbao05.atlassian.net/browse/CWRM-15). Cần đối chiếu lại fixture mới trên UI và xác nhận tên evidence, trạng thái snapshot với Khôi trước khi đóng task. Bảng P01–P12 ghi kết quả kỳ vọng của thiết kế kiểm thử.
