@@ -1,0 +1,24 @@
+# Hệ điều hành
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Trình soạn thảo và công cụ
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Phụ thuộc, đầu ra build và cache
+node_modules/
+dist/
+.next/
+coverage/
+
+# Tệp môi trường và log
+.env*
+!.env.example
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*

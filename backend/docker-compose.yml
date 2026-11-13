@@ -1,0 +1,24 @@
+# Tên cụm cố định để không trùng với dự án khác cũng có thư mục tên backend.
+name: cwrm
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:?Hãy khai báo POSTGRES_USER trong .env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Hãy khai báo POSTGRES_PASSWORD trong .env}"
+      POSTGRES_DB: "${POSTGRES_DB:?Hãy khai báo POSTGRES_DB trong .env}"
+    ports:
+      # Chỉ mở trên máy đang chạy, không mở ra mạng nội bộ.
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - cwrm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  cwrm_postgres_data:

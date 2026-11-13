@@ -1,0 +1,295 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WorkspaceRole {
+  MANAGER
+  MEMBER
+
+  @@map("workspace_role")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+
+  @@map("membership_status")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+
+  @@map("invitation_status")
+}
+
+enum TaskStatus {
+  TO_DO
+  IN_PROGRESS
+  BLOCKED
+  REVIEW
+  DONE
+
+  @@map("task_status")
+}
+
+enum AssignmentMode {
+  DIRECT
+  OPEN_WORK
+
+  @@map("assignment_mode")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@map("priority")
+}
+
+enum DeadlineType {
+  FIXED
+  FLEXIBLE
+
+  @@map("deadline_type")
+}
+
+model Account {
+  id                   String                @id @default(uuid()) @db.Uuid
+  email                String                @unique @db.VarChar(320)
+  passwordHash         String                @map("password_hash") @db.VarChar(255)
+  displayName          String                @map("display_name") @db.VarChar(120)
+  isActive             Boolean               @default(true) @map("is_active")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdWorkspaces    Workspace[]           @relation("WorkspaceCreator")
+  workspaceMemberships WorkspaceMembership[]
+  invitationsReceived  WorkspaceInvitation[] @relation("InvitationRecipient")
+  invitationsSent      WorkspaceInvitation[] @relation("InvitationSender")
+  teamMemberships      TeamMembership[]
+  memberRoles          MemberRole[]
+  memberSkills         MemberSkill[]
+
+  @@map("accounts")
+}
+
+model Workspace {
+  id              String                @id @default(uuid()) @db.Uuid
+  name            String                @db.VarChar(160)
+  createdByUserId String                @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy       Account               @relation("WorkspaceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  memberships     WorkspaceMembership[]
+  invitations     WorkspaceInvitation[]
+  teams           Team[]
+  roles           Role[]
+  skills          Skill[]
+  memberRoles     MemberRole[]
+  memberSkills    MemberSkill[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMembership {
+  id          String           @id @default(uuid()) @db.Uuid
+  workspaceId String           @map("workspace_id") @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  role        WorkspaceRole
+  status      MembershipStatus
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user        Account          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_memberships")
+}
+
+model WorkspaceInvitation {
+  id              String           @id @default(uuid()) @db.Uuid
+  workspaceId     String           @map("workspace_id") @db.Uuid
+  invitedUserId   String           @map("invited_user_id") @db.Uuid
+  invitedByUserId String           @map("invited_by_user_id") @db.Uuid
+  status          InvitationStatus
+  respondedAt     DateTime?        @map("responded_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  invitedUser     Account          @relation("InvitationRecipient", fields: [invitedUserId], references: [id], onDelete: Restrict)
+  invitedBy       Account          @relation("InvitationSender", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status, createdAt])
+  @@map("workspace_invitations")
+}
+
+model Team {
+  id          String           @id @default(uuid()) @db.Uuid
+  workspaceId String           @map("workspace_id") @db.Uuid
+  name        String           @db.VarChar(160)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  memberships TeamMembership[]
+  milestones  Milestone[]
+  tasks       Task[]
+
+  @@unique([workspaceId, name])
+  @@map("teams")
+}
+
+model TeamMembership {
+  id               String           @id @default(uuid()) @db.Uuid
+  teamId           String           @map("team_id") @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  status           MembershipStatus
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  team             Team             @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  user             Account          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  accountableTasks Task[]
+
+  @@unique([teamId, userId])
+  @@map("team_memberships")
+}
+
+model Role {
+  id               String                @id @default(uuid()) @db.Uuid
+  workspaceId      String                @map("workspace_id") @db.Uuid
+  name             String                @db.VarChar(100)
+  description      String?               @db.Text
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  memberRoles      MemberRole[]
+  taskRequirements TaskRoleRequirement[]
+
+  @@unique([workspaceId, name])
+  @@map("roles")
+}
+
+model Skill {
+  id               String                 @id @default(uuid()) @db.Uuid
+  workspaceId      String                 @map("workspace_id") @db.Uuid
+  name             String                 @db.VarChar(100)
+  description      String?                @db.Text
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  memberSkills     MemberSkill[]
+  taskRequirements TaskSkillRequirement[]
+
+  @@unique([workspaceId, name])
+  @@map("skills")
+}
+
+model MemberRole {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  roleId      String    @map("role_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user        Account   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role        Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, userId, roleId])
+  @@map("member_roles")
+}
+
+model MemberSkill {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  skillId     String    @map("skill_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user        Account   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  skill       Skill     @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, userId, skillId])
+  @@map("member_skills")
+}
+
+model Milestone {
+  id          String   @id @default(uuid()) @db.Uuid
+  teamId      String   @map("team_id") @db.Uuid
+  name        String   @db.VarChar(160)
+  description String?  @db.Text
+  deadlineAt  DateTime @map("deadline_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  tasks       Task[]
+
+  @@unique([teamId, id])
+  @@map("milestones")
+}
+
+model Task {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  teamId                String                 @map("team_id") @db.Uuid
+  milestoneId           String?                @map("milestone_id") @db.Uuid
+  accountableUserId     String                 @map("accountable_user_id") @db.Uuid
+  title                 String                 @db.VarChar(200)
+  description           String?                @db.Text
+  status                TaskStatus             @default(TO_DO)
+  assignmentMode        AssignmentMode         @map("assignment_mode")
+  openWorkOpen          Boolean                @default(false) @map("open_work_open")
+  priority              Priority
+  deadlineAt            DateTime               @map("deadline_at") @db.Timestamptz(3)
+  deadlineType          DeadlineType           @map("deadline_type")
+  effortEstimateHours   Decimal?               @map("effort_estimate_hours") @db.Decimal(8, 2)
+  effortActualHours     Decimal?               @map("effort_actual_hours") @db.Decimal(8, 2)
+  requiredPeople        Int                    @map("required_people")
+  progress              Int                    @default(0) @db.SmallInt
+  resultText            String?                @map("result_text") @db.Text
+  resultUrl             String?                @map("result_url") @db.Text
+  startedAt             DateTime?              @map("started_at") @db.Timestamptz(3)
+  completedAt           DateTime?              @map("completed_at") @db.Timestamptz(3)
+  version               Int                    @default(1)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  team                  Team                   @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  milestone             Milestone?             @relation(fields: [teamId, milestoneId], references: [teamId, id], onDelete: Restrict)
+  accountableMembership TeamMembership         @relation(fields: [teamId, accountableUserId], references: [teamId, userId], onDelete: Restrict)
+  roleRequirements      TaskRoleRequirement[]
+  skillRequirements     TaskSkillRequirement[]
+
+  @@unique([teamId, id])
+  @@index([teamId, status, deadlineAt])
+  @@index([accountableUserId, status])
+  @@index([milestoneId])
+  @@map("tasks")
+}
+
+model TaskRoleRequirement {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, roleId])
+  @@map("task_role_requirements")
+}
+
+model TaskSkillRequirement {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  skillId   String   @map("skill_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, skillId])
+  @@map("task_skill_requirements")
+}
