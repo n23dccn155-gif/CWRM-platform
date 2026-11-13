@@ -1,0 +1,2888 @@
+openapi: 3.0.3
+info:
+  title: CWRM API
+  version: 0.2.0-draft
+  description: |
+    REST contract CWRM MVP, phủ S01-S12. Enum dùng UPPER_SNAKE_CASE; UI tự ánh xạ sang nhãn.
+    Manager và Member là hai quyền hệ thống; role/skill chuyên môn và RACI là các dữ liệu khác nhau. Các giá trị x-permission là điều kiện truy cập theo quan hệ, không phải vai trò hệ thống mới.
+    Task status và assignment status không dùng chung. Task DONE và dữ liệu nghiệp vụ liên quan là chỉ đọc; status chỉ đổi qua action endpoint. Mọi timestamp là UTC ISO-8601; `RiskSnapshot.evaluatedAt` kết thúc bằng Z. `Task.risk` luôn có mặt, null khi chưa có snapshot hợp lệ; `CurrentRisk` khi đó không có `snapshot`. page/pageSize dùng cho list endpoint.
+
+    x-permission ghi điều kiện truy cập của từng operation. Giá trị là một mã hoặc một danh sách mã; danh sách nghĩa là chỉ cần thỏa một điều kiện. Guard backend kiểm tra các điều kiện này trên mọi request.
+    | x-permission | Điều kiện |
+    |---|---|
+    | PUBLIC | Không cần token |
+    | AUTHENTICATED | Có JWT hợp lệ |
+    | SELF | Tài nguyên thuộc về chính tài khoản trong JWT: hồ sơ, lời mời, assignment, request hoặc trạng thái đọc cảnh báo của mình. Không nhận userId từ client để thao tác thay người khác |
+    | WORKSPACE_MEMBER | Membership ACTIVE trong workspace với quyền MANAGER hoặc MEMBER. Dữ liệu trả về được lọc theo team mà MEMBER thuộc |
+    | WORKSPACE_MANAGER | Membership ACTIVE với quyền MANAGER trong workspace chứa tài nguyên |
+    | TEAM_ACCESS | MANAGER của workspace chứa team, hoặc thành viên ACTIVE của team |
+    | TASK_ACCESS | MANAGER của workspace chứa task, hoặc thành viên ACTIVE của team chứa task. Tương ứng dòng "Xem task và trao đổi" ở Scope 6.3 |
+    | TASK_RESPONSIBLE | Người gọi là R: có assignment ACCEPTED chưa kết thúc trên task |
+    | TASK_ACCOUNTABLE | Người gọi là A hiện hành của task |
+
+    Phong bì lỗi thống nhất: { "error": { "code", "message", "details" } }.
+    Mã lỗi ổn định theo HTTP status:
+    | HTTP | Mã | Ý nghĩa |
+    |---|---|---|
+    | 400 | VALIDATION_ERROR | Body, query hoặc path sai cấu trúc/miền |
+    | 401 | UNAUTHENTICATED | Thiếu hoặc JWT không hợp lệ/hết hạn |
+    | 403 | FORBIDDEN | Không có quyền hoặc không thuộc workspace/team |
+    | 404 | NOT_FOUND | Không tìm thấy tài nguyên trong phạm vi được phép |
+    | 409 | VERSION_CONFLICT | expectedVersion cũ; tải lại trước khi sửa |
+    | 409 | CAPACITY_EXCEEDED | Hết chỗ hoặc thao tác đồng thời tranh chỗ |
+    | 409 | UNIQUE_CONFLICT | Trùng dữ liệu duy nhất |
+    | 409 | SNAPSHOT_NOT_CURRENT | Snapshot không còn là snapshot hiện hành của task; tải snapshot mới rồi gọi lại |
+    | 422 | INVALID_STATE_TRANSITION | Chuyển trạng thái không hợp lệ |
+    | 422 | NOT_ELIGIBLE | Không đủ điều kiện Open Work; request không được tạo |
+    | 422 | PREDECESSOR_NOT_DONE | Chưa thể Start vì predecessor trực tiếp chưa Done |
+    | 422 | OPEN_BLOCKERS_EXIST | Không thể Review/Done khi còn blocker mở |
+    | 422 | NO_ACCEPTED_RESPONSIBLE | Chưa có R Accepted hiệu lực |
+    | 422 | DEPENDENCY_CYCLE | Dependency tạo chu trình |
+    | 422 | CROSS_TEAM_DEPENDENCY | Dependency không cùng team |
+    | 422 | ACCOUNTABLE_NOT_MANAGER | A không phải Manager workspace/không thuộc team |
+    | 422 | LAST_MANAGER_REQUIRED | Không thể gỡ hoặc hạ Manager cuối |
+    | 422 | RESPONSIBILITY_REQUIRED | Thao tác sẽ làm mất A/R cần thiết |
+    | 422 | INVITEE_NOT_REGISTERED | Chỉ mời tài khoản đã đăng ký |
+    | 422 | RISK_INPUT_INVALID | Risk input thiếu hoặc sai miền; details là danh sách { field, problem }; không tạo snapshot giả |
+    | 422 | AI_SNAPSHOT_LEVEL_NOT_SUPPORTED | AI chỉ nhận snapshot Medium/High |
+    | 500 | INTERNAL_ERROR | Lỗi hệ thống không dự kiến |
+    | 502 | AI_PROVIDER_ERROR | Provider trả lỗi |
+    | 502 | AI_OUTPUT_INVALID | Output thiếu trường hoặc evidence linkage sai |
+    | 503 | AI_TIMEOUT | Provider timeout; giữ risk/evidence và cho thử lại |
+    | 503 | AI_QUOTA_EXCEEDED | Hết quota; giữ risk/evidence và cho thử lại |
+    | 503 | RISK_EVALUATION_FAILED | Không thể đánh giá risk; snapshot trước không được coi là hiện hành |
+    | 503 | SERVICE_UNAVAILABLE | GET /health không truy vấn được database |
+
+    `RISK_INPUT_INVALID.details` là danh sách `{ field, problem }`, không chứa stack trace. Lỗi AI (502, 503) trả thêm trong details: retryable, recommendationId của bản ghi FAILED đã lưu, snapshotId và fallbackExplanation dựng từ evidence đã lưu. Risk và evidence vẫn đọc được qua các endpoint Risk.
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Máy phát triển mẫu; cổng sẽ chốt ở CWRM-12
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+    description: Kiểm tra tình trạng dịch vụ.
+  - name: Auth
+    description: 'S01: đăng ký, đăng nhập, đăng xuất và hồ sơ cơ bản.'
+  - name: Workspace
+    description: 'S01: workspace, membership MANAGER/MEMBER và lời mời trong ứng dụng.'
+  - name: Team
+    description: 'S02: team, thành viên team, danh mục role/skill chuyên môn và nhãn gắn cho thành viên.'
+  - name: Task
+    description: 'S03, S06, S07, S09: task, milestone, chuyển trạng thái qua action endpoint (gồm review của A) và dependency Finish-to-Start.'
+  - name: Assignment
+    description: 'S04, S05: Direct Assignment, Open Work request, eligibility và số chỗ.'
+  - name: RACI
+    description: 'S06: một A trên task, R suy ra từ assignment ACCEPTED hiệu lực, C/I tùy chọn.'
+  - name: Progress
+    description: 'S07, S08: progress, effort, can thiệp quản lý, blocker và trao đổi.'
+  - name: Risk
+    description: 'S10: risk snapshot bất biến, evidence và đánh giá lại.'
+  - name: Dashboard
+    description: 'S11: dashboard Manager, My Work và cảnh báo trong ứng dụng.'
+  - name: AI
+    description: 'S12: giải thích và gợi ý của AI gắn với risk snapshot.'
+  - name: Audit
+    description: 'S11: lịch sử thay đổi của task, chỉ đọc.'
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Kiểm tra tình trạng API
+      description: Công khai, không cần token.
+      x-permission: PUBLIC
+      security: []
+      responses:
+        '200': {description: API đang hoạt động, content: {application/json: {schema: {$ref: '#/components/schemas/Health'}}}}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        '503': {description: 'Không truy vấn được database; dịch vụ tạm thời không sẵn sàng (503 SERVICE_UNAVAILABLE)', content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /auth/register:
+    post:
+      operationId: registerAccount
+      tags: [Auth]
+      summary: Đăng ký tài khoản
+      description: Công khai. Password chỉ nhận qua HTTPS và lưu dạng bcrypt hash; email phải duy nhất. Không xác minh email trong MVP.
+      x-permission: PUBLIC
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RegisterRequest'}}}}
+      responses:
+        '201': {description: Tài khoản được tạo, content: {application/json: {schema: {$ref: '#/components/schemas/Account'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Đăng nhập
+      description: Công khai. Trả JWT Bearer access token; MVP không có refresh token.
+      x-permission: PUBLIC
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LoginRequest'}}}}
+      responses:
+        '200': {description: Đăng nhập thành công, content: {application/json: {schema: {$ref: '#/components/schemas/AuthSession'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: Kết thúc phiên ở client
+      description: Quyền AUTHENTICATED. Không thu hồi JWT phía server; client xóa access token. Token hết hạn theo cấu hình.
+      x-permission: AUTHENTICATED
+      responses:
+        '204': {description: Client có thể xóa token}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /auth/me:
+    get:
+      operationId: getMyAccount
+      tags: [Auth]
+      summary: Xem hồ sơ hiện tại
+      description: Quyền SELF; chỉ trả account của token hiện tại.
+      x-permission: SELF
+      responses:
+        '200': {description: Hồ sơ, content: {application/json: {schema: {$ref: '#/components/schemas/Account'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    patch:
+      operationId: updateMyAccount
+      tags: [Auth]
+      summary: Sửa tên hiển thị
+      description: Quyền SELF; email không đổi qua thao tác này.
+      x-permission: SELF
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ProfilePatchRequest'}}}}
+      responses:
+        '200': {description: Hồ sơ đã cập nhật, content: {application/json: {schema: {$ref: '#/components/schemas/Account'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces:
+    get:
+      operationId: listMyWorkspaces
+      tags: [Workspace]
+      summary: Liệt kê workspace của tôi
+      description: Quyền AUTHENTICATED; chỉ workspace mà tài khoản hiện tại là thành viên.
+      x-permission: AUTHENTICATED
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Danh sách phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspacePage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createWorkspace
+      tags: [Workspace]
+      summary: Tạo workspace
+      description: Quyền AUTHENTICATED; người tạo trở thành MANAGER trong workspace mới.
+      x-permission: AUTHENTICATED
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspaceCreateRequest'}}}}
+      responses:
+        '201': {description: Workspace mới, content: {application/json: {schema: {$ref: '#/components/schemas/Workspace'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+    get:
+      operationId: getWorkspace
+      tags: [Workspace]
+      summary: Xem workspace
+      description: Quyền WORKSPACE_MEMBER; Manager trong workspace hoặc thành viên workspace.
+      x-permission: WORKSPACE_MEMBER
+      responses:
+        '200': {description: Workspace, content: {application/json: {schema: {$ref: '#/components/schemas/Workspace'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    patch:
+      operationId: updateWorkspace
+      tags: [Workspace]
+      summary: Sửa workspace
+      description: Quyền WORKSPACE_MANAGER; chỉ sửa trường quản trị được phép.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspacePatchRequest'}}}}
+      responses:
+        '200': {description: Workspace đã sửa, content: {application/json: {schema: {$ref: '#/components/schemas/Workspace'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/members:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+      - {$ref: '#/components/parameters/Page'}
+      - {$ref: '#/components/parameters/PageSize'}
+    get:
+      operationId: listWorkspaceMembers
+      tags: [Workspace]
+      summary: Liệt kê thành viên workspace
+      description: Quyền WORKSPACE_MANAGER; liệt kê membership và nhãn role/skill trong workspace.
+      x-permission: WORKSPACE_MANAGER
+      responses:
+        '200': {description: Membership phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/MembershipPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/members/{userId}:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+      - {$ref: '#/components/parameters/UserId'}
+    get:
+      operationId: getWorkspaceMembership
+      tags: [Workspace]
+      summary: Xem membership và nhãn role/skill của một thành viên
+      description: Quyền SELF hoặc WORKSPACE_MANAGER; MEMBER chỉ xem membership và nhãn role/skill của chính mình, MANAGER xem mọi thành viên trong workspace.
+      x-permission: [SELF, WORKSPACE_MANAGER]
+      responses:
+        '200': {description: Membership và danh sách nhãn, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspaceMembership'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    patch:
+      operationId: updateWorkspaceMembership
+      tags: [Workspace]
+      summary: Đổi quyền hoặc trạng thái membership
+      description: Quyền WORKSPACE_MANAGER; không hạ/gỡ Manager cuối và không làm mất A/R cần xử lý.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MembershipPatchRequest'}}}}
+      responses:
+        '200': {description: Membership đã đổi, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspaceMembership'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    delete:
+      operationId: removeWorkspaceMembership
+      tags: [Workspace]
+      summary: Gỡ thành viên workspace
+      description: Quyền WORKSPACE_MANAGER; chỉ khi không còn trách nhiệm A/R cần xử lý và không gỡ Manager cuối. Membership chuyển INACTIVE, lịch sử được giữ.
+      x-permission: WORKSPACE_MANAGER
+      responses:
+        '204': {description: Membership đã gỡ}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/invitations:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+    get:
+      operationId: listWorkspaceInvitations
+      tags: [Workspace]
+      summary: Liệt kê lời mời
+      description: Quyền WORKSPACE_MANAGER; chỉ lời mời trong workspace này.
+      x-permission: WORKSPACE_MANAGER
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Lời mời phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/InvitationPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: inviteWorkspaceMember
+      tags: [Workspace]
+      summary: Tạo lời mời trong ứng dụng
+      description: Quyền WORKSPACE_MANAGER; email phải thuộc tài khoản đã đăng ký. Không gửi email.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/InvitationCreateRequest'}}}}
+      responses:
+        '201': {description: Invitation PENDING, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspaceInvitation'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspace-invitations:
+    get:
+      operationId: listMyWorkspaceInvitations
+      tags: [Workspace]
+      summary: Liệt kê lời mời gửi tới tôi
+      description: Quyền SELF; chỉ trả lời mời của account trong JWT, không gửi email.
+      x-permission: SELF
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Lời mời phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/InvitationPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspace-invitations/{invitationId}/accept:
+    parameters:
+      - {$ref: '#/components/parameters/InvitationId'}
+    post:
+      operationId: acceptWorkspaceInvitation
+      tags: [Workspace]
+      summary: Chấp nhận lời mời
+      description: Quyền SELF; chỉ tài khoản được mời mới được Accept.
+      x-permission: SELF
+      responses:
+        '200': {description: Membership đã tham gia, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspaceMembership'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspace-invitations/{invitationId}/decline:
+    parameters:
+      - {$ref: '#/components/parameters/InvitationId'}
+    post:
+      operationId: declineWorkspaceInvitation
+      tags: [Workspace]
+      summary: Từ chối lời mời
+      description: Quyền SELF; chỉ tài khoản được mời mới được Decline.
+      x-permission: SELF
+      responses:
+        '200': {description: Invitation DECLINED, content: {application/json: {schema: {$ref: '#/components/schemas/WorkspaceInvitation'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/teams:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+    get:
+      operationId: listTeams
+      tags: [Team]
+      summary: Liệt kê team
+      description: Quyền WORKSPACE_MEMBER; Manager xem mọi team, Member chỉ team mình thuộc.
+      x-permission: WORKSPACE_MEMBER
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Team phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/TeamPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createTeam
+      tags: [Team]
+      summary: Tạo team
+      description: Quyền WORKSPACE_MANAGER.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TeamCreateRequest'}}}}
+      responses:
+        '201': {description: Team, content: {application/json: {schema: {$ref: '#/components/schemas/Team'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /teams/{teamId}:
+    parameters:
+      - {$ref: '#/components/parameters/TeamId'}
+    get:
+      operationId: getTeam
+      tags: [Team]
+      summary: Xem team
+      description: Quyền TEAM_ACCESS.
+      x-permission: TEAM_ACCESS
+      responses:
+        '200': {description: Team, content: {application/json: {schema: {$ref: '#/components/schemas/Team'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    patch:
+      operationId: updateTeam
+      tags: [Team]
+      summary: Sửa tên team
+      description: Quyền WORKSPACE_MANAGER.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TeamPatchRequest'}}}}
+      responses:
+        '200': {description: Team đã sửa, content: {application/json: {schema: {$ref: '#/components/schemas/Team'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /teams/{teamId}/members:
+    parameters:
+      - {$ref: '#/components/parameters/TeamId'}
+    get:
+      operationId: listTeamMembers
+      tags: [Team]
+      summary: Liệt kê thành viên team
+      description: Quyền TEAM_ACCESS.
+      x-permission: TEAM_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Thành viên phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/TeamMembershipPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: addTeamMember
+      tags: [Team]
+      summary: Thêm thành viên vào team
+      description: Quyền WORKSPACE_MANAGER; tài khoản phải là thành viên workspace.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TeamMemberCreateRequest'}}}}
+      responses:
+        '201': {description: Membership, content: {application/json: {schema: {$ref: '#/components/schemas/TeamMembership'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /teams/{teamId}/members/{userId}:
+    parameters:
+      - {$ref: '#/components/parameters/TeamId'}
+      - {$ref: '#/components/parameters/UserId'}
+    delete:
+      operationId: removeTeamMember
+      tags: [Team]
+      summary: Gỡ thành viên khỏi team
+      description: Quyền WORKSPACE_MANAGER; chặn nếu làm task chưa Done mất A/R cần thiết. Membership team chuyển INACTIVE, lịch sử được giữ.
+      x-permission: WORKSPACE_MANAGER
+      responses:
+        '204': {description: Đã gỡ thành viên}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/roles:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+    get:
+      operationId: listRoles
+      tags: [Team]
+      summary: Liệt kê role chuyên môn
+      description: Quyền WORKSPACE_MEMBER; role không cấp quyền hệ thống.
+      x-permission: WORKSPACE_MEMBER
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Danh mục phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/RolePage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createRole
+      tags: [Team]
+      summary: Tạo role chuyên môn
+      description: Quyền WORKSPACE_MANAGER.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LabelCreateRequest'}}}}
+      responses:
+        '201': {description: Role, content: {application/json: {schema: {$ref: '#/components/schemas/Label'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /roles/{roleId}:
+    parameters:
+      - {$ref: '#/components/parameters/RoleId'}
+    patch:
+      operationId: updateRole
+      tags: [Team]
+      summary: Sửa role chuyên môn
+      description: Quyền WORKSPACE_MANAGER; không đổi role/eligibility của assignment đã nhận.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LabelPatchRequest'}}}}
+      responses:
+        '200': {description: Role đã sửa, content: {application/json: {schema: {$ref: '#/components/schemas/Label'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    delete:
+      operationId: deleteRole
+      tags: [Team]
+      summary: Xóa role không còn được tham chiếu
+      description: Quyền WORKSPACE_MANAGER; task DONE vẫn chỉ đọc; xung đột nếu role đang được task/member sử dụng.
+      x-permission: WORKSPACE_MANAGER
+      responses:
+        '204': {description: Role đã xóa}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/skills:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+    get:
+      operationId: listSkills
+      tags: [Team]
+      summary: Liệt kê skill
+      description: Quyền WORKSPACE_MEMBER; skill không cấp quyền hệ thống.
+      x-permission: WORKSPACE_MEMBER
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Danh mục phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/SkillPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createSkill
+      tags: [Team]
+      summary: Tạo skill
+      description: Quyền WORKSPACE_MANAGER.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LabelCreateRequest'}}}}
+      responses:
+        '201': {description: Skill, content: {application/json: {schema: {$ref: '#/components/schemas/Label'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /skills/{skillId}:
+    parameters:
+      - {$ref: '#/components/parameters/SkillId'}
+    patch:
+      operationId: updateSkill
+      tags: [Team]
+      summary: Sửa skill
+      description: Quyền WORKSPACE_MANAGER; không tự hủy assignment Accepted.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LabelPatchRequest'}}}}
+      responses:
+        '200': {description: Skill đã sửa, content: {application/json: {schema: {$ref: '#/components/schemas/Label'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    delete:
+      operationId: deleteSkill
+      tags: [Team]
+      summary: Xóa skill không còn được tham chiếu
+      description: Quyền WORKSPACE_MANAGER; xung đột nếu skill đang được task/member sử dụng.
+      x-permission: WORKSPACE_MANAGER
+      responses:
+        '204': {description: Skill đã xóa}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/members/{userId}/roles:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+      - {$ref: '#/components/parameters/UserId'}
+    put:
+      operationId: setMemberRoles
+      tags: [Team]
+      summary: Gắn tập role chuyên môn cho thành viên
+      description: Quyền WORKSPACE_MANAGER; Member không tự gắn role để vượt eligibility.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LabelSetRequest'}}}}
+      responses:
+        '200': {description: Danh sách role hiện hành, content: {application/json: {schema: {$ref: '#/components/schemas/LabelSet'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/members/{userId}/skills:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+      - {$ref: '#/components/parameters/UserId'}
+    put:
+      operationId: setMemberSkills
+      tags: [Team]
+      summary: Gắn tập skill cho thành viên
+      description: Quyền WORKSPACE_MANAGER; thay nhãn không tự kết thúc assignment Accepted.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LabelSetRequest'}}}}
+      responses:
+        '200': {description: Danh sách skill hiện hành, content: {application/json: {schema: {$ref: '#/components/schemas/LabelSet'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /teams/{teamId}/milestones:
+    parameters:
+      - {$ref: '#/components/parameters/TeamId'}
+    get:
+      operationId: listMilestones
+      tags: [Task]
+      summary: Liệt kê milestone
+      description: Quyền TEAM_ACCESS.
+      x-permission: TEAM_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Milestone phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/MilestonePage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createMilestone
+      tags: [Task]
+      summary: Tạo milestone
+      description: Quyền WORKSPACE_MANAGER.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MilestoneCreateRequest'}}}}
+      responses:
+        '201': {description: Milestone, content: {application/json: {schema: {$ref: '#/components/schemas/Milestone'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /milestones/{milestoneId}:
+    parameters:
+      - {$ref: '#/components/parameters/MilestoneId'}
+    patch:
+      operationId: updateMilestone
+      tags: [Task]
+      summary: Sửa milestone
+      description: Quyền WORKSPACE_MANAGER.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MilestonePatchRequest'}}}}
+      responses:
+        '200': {description: Milestone đã sửa, content: {application/json: {schema: {$ref: '#/components/schemas/Milestone'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [Task]
+      summary: Liệt kê task theo phạm vi được phép
+      description: Quyền WORKSPACE_MEMBER; MANAGER xem mọi team trong workspace, MEMBER chỉ thấy task của team mình thuộc. Lọc theo teamId, status, priority, riskLevel, assignmentMode, openWorkOpen, accountableUserId, responsibleUserId, deadlineBefore và deadlineAfter. Danh sách Open Work của team dùng assignmentMode=OPEN_WORK cùng openWorkOpen=true; hàng chờ review của A dùng status=REVIEW cùng accountableUserId.
+      x-permission: WORKSPACE_MEMBER
+      parameters:
+        - {$ref: '#/components/parameters/WorkspaceIdQuery'}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {name: teamId, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/TaskStatus'}}
+        - {name: priority, in: query, schema: {$ref: '#/components/schemas/Priority'}}
+        - {name: riskLevel, in: query, schema: {$ref: '#/components/schemas/RiskLevel'}}
+        - {name: assignmentMode, in: query, schema: {type: string, enum: [DIRECT, OPEN_WORK]}}
+        - {name: openWorkOpen, in: query, schema: {type: boolean}}
+        - {name: accountableUserId, in: query, schema: {type: string, format: uuid}}
+        - {name: responsibleUserId, in: query, schema: {type: string, format: uuid}}
+        - {name: deadlineBefore, in: query, schema: {type: string, format: date-time}}
+        - {name: deadlineAfter, in: query, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: Danh sách task phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/TaskPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createTask
+      tags: [Task]
+      summary: Tạo task
+      description: Quyền WORKSPACE_MANAGER; task thuộc đúng một team, có đúng một A Manager thuộc team. Task bắt đầu TO_DO với progress 0.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TaskCreateRequest'}}}}
+      responses:
+        '201': {description: Task, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: getTask
+      tags: [Task]
+      summary: Xem task
+      description: Quyền TASK_ACCESS; Manager trong workspace hoặc thành viên team task.
+      x-permission: TASK_ACCESS
+      responses:
+        '200': {description: Task, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    patch:
+      operationId: updateTask
+      tags: [Task]
+      summary: Sửa ngữ cảnh task
+      description: Quyền WORKSPACE_MANAGER; không nhận status, accountableUserId hoặc openWorkOpen; task DONE không sửa. Gửi expectedVersion; sửa deadline FIXED cần reason. Chuyển A và mở/đóng Open Work qua action endpoint riêng. Không đổi role/skill khi còn request PENDING; assignment mode không đổi sau khi đã có assignment/request.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TaskPatchRequest'}}}}
+      responses:
+        '200': {description: Task và version mới, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/capacity:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    patch:
+      operationId: updateTaskCapacity
+      tags: [Task]
+      summary: Đổi số người cần
+      description: Quyền WORKSPACE_MANAGER; task chưa DONE, expectedVersion bắt buộc, không giảm dưới chỗ Accepted/Direct Pending đang giữ.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CapacityPatchRequest'}}}}
+      responses:
+        '200': {description: Task đã cập nhật, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/start:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: startTask
+      tags: [Task]
+      summary: Bắt đầu task
+      description: Quyền TASK_RESPONSIBLE; cần A hợp lệ, R Accepted và mọi predecessor trực tiếp Done. Chuyển TO_DO sang IN_PROGRESS; Accepted không tự Start.
+      x-permission: TASK_RESPONSIBLE
+      requestBody: {$ref: '#/components/requestBodies/VersionAction'}
+      responses:
+        '200': {description: Task IN_PROGRESS, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/submit-review:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: submitTaskForReview
+      tags: [Task]
+      summary: Gửi kết quả để review
+      description: Quyền TASK_RESPONSIBLE; chỉ IN_PROGRESS, progress=100 và không có blocker mở. Không đổi trực tiếp status bằng PATCH.
+      x-permission: TASK_RESPONSIBLE
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SubmitReviewRequest'}}}}
+      responses:
+        '200': {description: Task REVIEW, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/approve:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: approveTaskResult
+      tags: [Task]
+      summary: A duyệt kết quả và hoàn tất
+      description: Quyền TASK_ACCOUNTABLE; A hiện hành phải là Manager workspace và thành viên team. REVIEW chuyển DONE; ghi completedAt.
+      x-permission: TASK_ACCOUNTABLE
+      requestBody: {$ref: '#/components/requestBodies/VersionAction'}
+      responses:
+        '200': {description: Task DONE, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/return:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: returnTaskForRework
+      tags: [Task]
+      summary: A trả kết quả để làm tiếp
+      description: Quyền TASK_ACCOUNTABLE; cần lý do và progress mới 0–99. REVIEW chuyển IN_PROGRESS; không sửa status trực tiếp.
+      x-permission: TASK_ACCOUNTABLE
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ReturnTaskRequest'}}}}
+      responses:
+        '200': {description: Task IN_PROGRESS, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/accountable:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: transferAccountability
+      tags: [RACI]
+      summary: Chuyển A
+      description: Quyền WORKSPACE_MANAGER; task chưa DONE; đích phải là Manager trong workspace và thuộc team; lý do bắt buộc, lưu audit.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TransferAccountabilityRequest'}}}}
+      responses:
+        '200': {description: RACI/task đã đổi, content: {application/json: {schema: {$ref: '#/components/schemas/RaciView'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /assignments:
+    get:
+      operationId: listMyAssignments
+      tags: [Assignment]
+      summary: Liệt kê assignment của tôi
+      description: Quyền SELF; chỉ assignment của tài khoản trong JWT, trên mọi task. Dùng status=PENDING_ACCEPTANCE cùng active=true để lấy các đề nghị Direct đang chờ tôi phản hồi.
+      x-permission: SELF
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {name: workspaceId, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/AssignmentStatus'}}
+        - {name: active, in: query, description: 'true thì chỉ trả assignment chưa kết thúc (endedAt rỗng)', schema: {type: boolean}}
+      responses:
+        '200': {description: Assignment phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/AssignmentPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/assignments:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: listTaskAssignments
+      tags: [Assignment]
+      summary: Xem assignment của task
+      description: Quyền TASK_ACCESS; gồm cả nguồn DIRECT và OPEN_WORK, kể cả assignment đã kết thúc. R hiệu lực là assignment ACCEPTED có endedAt rỗng.
+      x-permission: TASK_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/AssignmentStatus'}}
+        - {name: active, in: query, description: 'true thì chỉ trả assignment chưa kết thúc (endedAt rỗng)', schema: {type: boolean}}
+      responses:
+        '200': {description: Assignment phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/AssignmentPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/direct-assignments:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: createDirectAssignments
+      tags: [Assignment]
+      summary: Gửi đề nghị Direct Assignment
+      description: Quyền WORKSPACE_MANAGER; người được giao phải là thành viên ACTIVE của team. Role/skill là gợi ý, không chặn. Đề nghị PENDING_ACCEPTANCE giữ chỗ; transaction khóa task và không vượt requiredPeople. Task OPEN_WORK chỉ nhận Direct Assignment để bổ sung người sau khi đã bắt đầu (Scope S05).
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DirectAssignmentCreateRequest'}}}}
+      responses:
+        '201': {description: Các assignment PENDING_ACCEPTANCE, content: {application/json: {schema: {$ref: '#/components/schemas/AssignmentList'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /assignments/{assignmentId}/respond:
+    parameters:
+      - {$ref: '#/components/parameters/AssignmentId'}
+    post:
+      operationId: respondToDirectAssignment
+      tags: [Assignment]
+      summary: Member Accept hoặc Decline
+      description: Quyền SELF; đúng người nhận phản hồi assignment DIRECT đang Pending Acceptance. Decline bắt buộc lý do. Accept tạo R nhưng không Start task.
+      x-permission: SELF
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AssignmentResponseRequest'}}}}
+      responses:
+        '200': {description: Assignment status đã đổi, content: {application/json: {schema: {$ref: '#/components/schemas/Assignment'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /assignments/{assignmentId}/manager-end:
+    parameters:
+      - {$ref: '#/components/parameters/AssignmentId'}
+    post:
+      operationId: managerEndAssignment
+      tags: [Assignment]
+      summary: Manager đóng đề nghị hoặc kết thúc assignment
+      description: Quyền WORKSPACE_MANAGER; lý do bắt buộc. Ghi endedAt/endedBy/endReason, không đổi status thành DECLINED.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ReasonVersionRequest'}}}}
+      responses:
+        '200': {description: Assignment đã đóng/kết thúc, content: {application/json: {schema: {$ref: '#/components/schemas/Assignment'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/open-work/open:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: openWorkRegistration
+      tags: [Assignment]
+      summary: Mở đăng ký Open Work
+      description: Quyền WORKSPACE_MANAGER; task phải dùng OPEN_WORK và đang TO_DO.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {$ref: '#/components/requestBodies/VersionAction'}
+      responses:
+        '200': {description: Task đăng ký mở, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/open-work/close:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: closeOpenWorkRegistration
+      tags: [Assignment]
+      summary: Đóng đăng ký Open Work
+      description: Quyền WORKSPACE_MANAGER; khi task Start hoặc đủ chỗ hệ thống tự đóng và chuyển request PENDING còn lại sang REJECTED, đồng thời lưu lý do hệ thống ở `decisionReason`. Khi Manager đóng đăng ký, các request PENDING còn lại cũng chuyển sang REJECTED với lý do hệ thống được lưu ở `decisionReason`.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {$ref: '#/components/requestBodies/VersionAction'}
+      responses:
+        '200': {description: Task đăng ký đóng, content: {application/json: {schema: {$ref: '#/components/schemas/Task'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/open-work/eligibility:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: checkOpenWorkEligibility
+      tags: [Assignment]
+      summary: Kiểm tra eligibility của tôi
+      description: Quyền TASK_ACCESS; chỉ trả điều kiện của chính người gọi. Người không đủ eligibility bị chặn khi gửi request (422 NOT_ELIGIBLE).
+      x-permission: TASK_ACCESS
+      responses:
+        '200': {description: Eligibility, content: {application/json: {schema: {$ref: '#/components/schemas/Eligibility'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/open-work/requests:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: listOpenWorkRequests
+      tags: [Assignment]
+      summary: Xem request Open Work
+      description: Quyền TASK_ACCESS; MANAGER xem mọi request của task, MEMBER chỉ thấy request của chính mình.
+      x-permission: TASK_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Request phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/RequestPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createOpenWorkRequest
+      tags: [Assignment]
+      summary: Gửi request Open Work
+      description: Quyền SELF; người gọi gửi request cho chính mình. Phải là thành viên ACTIVE của team, task OPEN_WORK đang mở và còn TO_DO, khớp ít nhất một role yêu cầu và có đủ mọi skill yêu cầu; không đủ điều kiện thì trả 422 NOT_ELIGIBLE và không tạo request. Mỗi người tối đa một request PENDING trên một task và không request khi đã là R. Request PENDING không tạo R.
+      x-permission: SELF
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/OpenWorkRequestCreate'}}}}
+      responses:
+        '201': {description: Request PENDING, content: {application/json: {schema: {$ref: '#/components/schemas/OpenWorkRequest'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /open-work-requests:
+    get:
+      operationId: listMyOpenWorkRequests
+      tags: [Assignment]
+      summary: Liệt kê request Open Work của tôi
+      description: Quyền SELF; chỉ request do tài khoản trong JWT gửi, trên mọi task.
+      x-permission: SELF
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {name: workspaceId, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/RequestStatus'}}
+        - {name: taskId, in: query, description: 'Chỉ trả request của task này', schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Request phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/RequestPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /workspaces/{workspaceId}/open-work-requests:
+    parameters:
+      - {$ref: '#/components/parameters/WorkspaceId'}
+    get:
+      operationId: listWorkspaceOpenWorkRequests
+      tags: [Assignment]
+      summary: Liệt kê request Open Work trong workspace
+      description: Quyền WORKSPACE_MANAGER; dùng status=PENDING để lấy hàng chờ duyệt. Lọc thêm theo teamId hoặc taskId.
+      x-permission: WORKSPACE_MANAGER
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/RequestStatus'}}
+        - {name: teamId, in: query, schema: {type: string, format: uuid}}
+        - {name: taskId, in: query, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Request phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/RequestPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /open-work-requests/{requestId}/withdraw:
+    parameters:
+      - {$ref: '#/components/parameters/RequestId'}
+    post:
+      operationId: withdrawOpenWorkRequest
+      tags: [Assignment]
+      summary: Rút request đang Pending
+      description: Quyền SELF; chỉ người gửi rút request PENDING.
+      x-permission: SELF
+      responses:
+        '200': {description: Request WITHDRAWN, content: {application/json: {schema: {$ref: '#/components/schemas/OpenWorkRequest'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /open-work-requests/{requestId}/approve:
+    parameters:
+      - {$ref: '#/components/parameters/RequestId'}
+    post:
+      operationId: approveOpenWorkRequest
+      tags: [Assignment]
+      summary: Duyệt Open Work request
+      description: Quyền WORKSPACE_MANAGER; transaction khóa task, kiểm lại eligibility/capacity rồi tạo assignment ACCEPTED và R, không cần Accept lần hai.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {$ref: '#/components/requestBodies/VersionAction'}
+      responses:
+        '200': {description: Request APPROVED và assignment ACCEPTED, content: {application/json: {schema: {$ref: '#/components/schemas/ApprovedRequest'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /open-work-requests/{requestId}/reject:
+    parameters:
+      - {$ref: '#/components/parameters/RequestId'}
+    post:
+      operationId: rejectOpenWorkRequest
+      tags: [Assignment]
+      summary: Từ chối Open Work request
+      description: Quyền WORKSPACE_MANAGER; lý do bắt buộc. Rejected không tạo assignment/R.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RejectRequest'}}}}
+      responses:
+        '200': {description: Request REJECTED, content: {application/json: {schema: {$ref: '#/components/schemas/OpenWorkRequest'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/raci:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: getTaskRaci
+      tags: [RACI]
+      summary: Xem RACI task
+      description: Quyền TASK_ACCESS; R được suy ra từ assignment Accepted hiệu lực.
+      x-permission: TASK_ACCESS
+      responses:
+        '200': {description: RACI view, content: {application/json: {schema: {$ref: '#/components/schemas/RaciView'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/raci/contacts:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    put:
+      operationId: setTaskRaciContacts
+      tags: [RACI]
+      summary: Thay tập C/I
+      description: Quyền WORKSPACE_MANAGER; task chưa DONE; chỉ lưu C/I là thành viên team, không cấp quyền Manager.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RaciContactsRequest'}}}}
+      responses:
+        '200': {description: RACI đã đổi, content: {application/json: {schema: {$ref: '#/components/schemas/RaciView'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/progress-updates:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: listProgressUpdates
+      tags: [Progress]
+      summary: Xem lịch sử progress/effort/kết quả
+      description: Quyền TASK_ACCESS.
+      x-permission: TASK_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Lịch sử phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/ProgressUpdatePage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createProgressUpdate
+      tags: [Progress]
+      summary: Cập nhật progress hoặc effort
+      description: Quyền TASK_RESPONSIBLE; R Accepted cập nhật chung ở task level trong IN_PROGRESS/BLOCKED. Gửi expectedVersion; không tự chuyển status.
+      x-permission: TASK_RESPONSIBLE
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ProgressUpdateRequest'}}}}
+      responses:
+        '201': {description: Progress update và task version mới, content: {application/json: {schema: {$ref: '#/components/schemas/ProgressUpdateResult'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/management-interventions:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    post:
+      operationId: createManagerIntervention
+      tags: [Progress]
+      summary: Can thiệp quản lý có lý do
+      description: 'Quyền WORKSPACE_MANAGER; Manager không phải R điều chỉnh progress hoặc effort thay R (Scope 6.3). Task phải IN_PROGRESS hoặc BLOCKED; reason bắt buộc và lưu audit trước/sau. Response gồm `{ intervention, task }`; `intervention` được dựng từ audit record. Không đặt task status hay risk; deadline và priority sửa qua PATCH /tasks/{taskId}.'
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ManagerInterventionRequest'}}}}
+      responses:
+        '200': {description: Bản ghi can thiệp và Task sau cập nhật, content: {application/json: {schema: {$ref: '#/components/schemas/ManagerInterventionResult'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/blockers:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: listBlockers
+      tags: [Progress]
+      summary: Liệt kê blocker
+      description: Quyền TASK_ACCESS.
+      x-permission: TASK_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Blocker phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/BlockerPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createBlocker
+      tags: [Progress]
+      summary: Báo blocker
+      description: Quyền TASK_RESPONSIBLE; task IN_PROGRESS/BLOCKED. Khi có blocker mở, hệ thống chuyển task BLOCKED và mở blocked period nếu cần.
+      x-permission: TASK_RESPONSIBLE
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BlockerCreateRequest'}}}}
+      responses:
+        '201': {description: Blocker và task hiện hành, content: {application/json: {schema: {$ref: '#/components/schemas/BlockerResult'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /blockers/{blockerId}/resolve:
+    parameters:
+      - {$ref: '#/components/parameters/BlockerId'}
+    post:
+      operationId: resolveBlocker
+      tags: [Progress]
+      summary: Giải quyết blocker
+      description: Quyền TASK_RESPONSIBLE hoặc WORKSPACE_MANAGER; ghi chú xử lý bắt buộc. Task chỉ về IN_PROGRESS khi mọi blocker đã Resolved.
+      x-permission: [TASK_RESPONSIBLE, WORKSPACE_MANAGER]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ResolveBlockerRequest'}}}}
+      responses:
+        '200': {description: Blocker đã giải quyết, content: {application/json: {schema: {$ref: '#/components/schemas/BlockerResult'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/comments:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: listTaskComments
+      tags: [Progress]
+      summary: Xem trao đổi task
+      description: Quyền TASK_ACCESS.
+      x-permission: TASK_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Comment phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/CommentPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: createTaskComment
+      tags: [Progress]
+      summary: Bình luận trên task
+      description: Quyền TASK_ACCESS; MANAGER của workspace hoặc thành viên team được trao đổi. Không có chat realtime.
+      x-permission: TASK_ACCESS
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CommentCreateRequest'}}}}
+      responses:
+        '201': {description: Comment, content: {application/json: {schema: {$ref: '#/components/schemas/TaskComment'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/dependencies:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: listTaskDependencies
+      tags: [Task]
+      summary: Xem predecessor và successor
+      description: Quyền TASK_ACCESS; danh sách cạnh Finish-to-Start phân trang, có thể có nhiều predecessor/successor.
+      x-permission: TASK_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Dependency edges phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/DependencyPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: addTaskDependency
+      tags: [Task]
+      summary: Thêm Finish-to-Start dependency
+      description: Quyền WORKSPACE_MANAGER; cùng team, không tự phụ thuộc/không vòng; successor phải còn TO_DO. Dependency tự trỏ (predecessor trùng successor) được coi là vòng và trả 422 DEPENDENCY_CYCLE; khác team trả 422 CROSS_TEAM_DEPENDENCY.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DependencyCreateRequest'}}}}
+      responses:
+        '201': {description: Dependency, content: {application/json: {schema: {$ref: '#/components/schemas/TaskDependency'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /dependencies/{dependencyId}/remove:
+    parameters:
+      - {$ref: '#/components/parameters/DependencyId'}
+    post:
+      operationId: removeTaskDependency
+      tags: [Task]
+      summary: Gỡ dependency
+      description: Quyền WORKSPACE_MANAGER; chỉ sửa khi task phụ thuộc còn TO_DO; lưu audit và reason.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ReasonRequest'}}}}
+      responses:
+        '204': {description: Dependency đã gỡ}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/risk-snapshots/current:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: getCurrentTaskRisk
+      tags: [Risk]
+      summary: Xem risk snapshot hiện hành
+      description: Quyền TASK_ACCESS; isCurrent=false khi dữ liệu task đã đổi sau snapshot hoặc lần đánh giá gần nhất lỗi, khi đó UI không trình bày snapshot như kết quả mới. Với MEMBER, evidence về workload chỉ có số tổng hợp, không kèm tên hay nội dung task ngoài quyền xem (Scope S10). Không ai nhập hoặc sửa risk bằng tay.
+      x-permission: TASK_ACCESS
+      responses:
+        '200': {description: Snapshot gần nhất và trạng thái currentness, content: {application/json: {schema: {$ref: '#/components/schemas/CurrentRisk'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/risk-snapshots:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+    get:
+      operationId: listTaskRiskSnapshots
+      tags: [Risk]
+      summary: Xem lịch sử risk
+      description: Quyền TASK_ACCESS; snapshot bất biến, phân trang.
+      x-permission: TASK_ACCESS
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Lịch sử phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/RiskSnapshotPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: evaluateTaskRisk
+      tags: [Risk]
+      summary: Manager yêu cầu đánh giá lại
+      description: Quyền WORKSPACE_MANAGER; nguồn trigger MANUAL. Không nhận riskLevel/risk score từ client.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {$ref: '#/components/requestBodies/EmptyOptional'}
+      responses:
+        '200': {description: Đánh giá thành công và snapshot mới, content: {application/json: {schema: {$ref: '#/components/schemas/RiskEvaluationResult'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/RiskInputInvalid'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        '503': {$ref: '#/components/responses/RiskUnavailable'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /dashboard/manager:
+    get:
+      operationId: getManagerDashboard
+      tags: [Dashboard]
+      summary: Dashboard risk của Manager
+      description: Quyền WORKSPACE_MANAGER; trả số task theo status và theo risk, kèm danh sách task theo bộ lọc team, status, priority, riskLevel, assignmentMode, openWorkOpen, deadlineBefore/deadlineAfter và người A/R. Khi không truyền riskLevel, danh sách gồm task chưa DONE có risk MEDIUM hoặc HIGH.
+      x-permission: WORKSPACE_MANAGER
+      parameters:
+        - {$ref: '#/components/parameters/WorkspaceIdQuery'}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {name: teamId, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/TaskStatus'}}
+        - {name: priority, in: query, schema: {$ref: '#/components/schemas/Priority'}}
+        - {name: riskLevel, in: query, schema: {$ref: '#/components/schemas/RiskLevel'}}
+        - {name: assignmentMode, in: query, schema: {type: string, enum: [DIRECT, OPEN_WORK]}}
+        - {name: openWorkOpen, in: query, schema: {type: boolean}}
+        - {name: accountableUserId, in: query, schema: {type: string, format: uuid}}
+        - {name: responsibleUserId, in: query, schema: {type: string, format: uuid}}
+        - {name: deadlineBefore, in: query, schema: {type: string, format: date-time}}
+        - {name: deadlineAfter, in: query, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: Dashboard phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/Dashboard'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /dashboard/my-work:
+    get:
+      operationId: getMyWorkDashboard
+      tags: [Dashboard]
+      summary: My Work
+      description: Quyền WORKSPACE_MEMBER; trả riêng ba danh sách phân trang, gồm task chưa DONE mà người gọi là R hiệu lực, đề nghị Direct PENDING_ACCEPTANCE đang chờ người gọi, và request Open Work do người gọi gửi. `counts` là tổng số bản ghi của mỗi section trong workspace, không phụ thuộc trang hiện tại.
+      x-permission: WORKSPACE_MEMBER
+      parameters:
+        - {$ref: '#/components/parameters/WorkspaceIdQuery'}
+        - {name: myTasksPage, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: myTasksPageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: pendingDirectAssignmentsPage, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: pendingDirectAssignmentsPageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: myOpenWorkRequestsPage, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: myOpenWorkRequestsPageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+      responses:
+        '200': {description: My Work với từng section phân trang độc lập, content: {application/json: {schema: {$ref: '#/components/schemas/MyWorkDashboard'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /alerts:
+    get:
+      operationId: listMyAlerts
+      tags: [Dashboard]
+      summary: Liệt kê cảnh báo của tôi
+      description: Quyền SELF; chỉ cảnh báo mà người gọi là người nhận, tức A hoặc R hiệu lực của task. Đã đọc không đồng nghĩa đã giải quyết.
+      x-permission: SELF
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {name: workspaceId, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {type: string, enum: [OPEN, RESOLVED]}}
+        - {name: unread, in: query, schema: {type: boolean}}
+      responses:
+        '200': {description: Alert phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/AlertPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /alerts/{alertId}/read:
+    parameters:
+      - {$ref: '#/components/parameters/AlertId'}
+    post:
+      operationId: markAlertRead
+      tags: [Dashboard]
+      summary: Đánh dấu đã đọc
+      description: Quyền SELF; người gọi phải là người nhận của cảnh báo. Cập nhật readAt của riêng người gọi, không resolve alert.
+      x-permission: SELF
+      responses:
+        '200': {description: Trạng thái đọc của tôi, content: {application/json: {schema: {$ref: '#/components/schemas/AlertRecipient'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/risk-snapshots/{snapshotId}/explanations:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+      - {$ref: '#/components/parameters/SnapshotId'}
+    get:
+      operationId: getRiskExplanation
+      tags: [AI]
+      summary: Xem giải thích đã lưu của snapshot
+      description: Quyền WORKSPACE_MANAGER; trả kết quả mới nhất đã lưu cho snapshot và không gọi AI. Trả 404 khi snapshot chưa có kết quả nào.
+      x-permission: WORKSPACE_MANAGER
+      responses:
+        '200': {description: 'Kết quả đã lưu, SUCCESS hoặc FAILED', content: {application/json: {schema: {$ref: '#/components/schemas/AIExplanationResult'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+    post:
+      operationId: requestRiskExplanation
+      tags: [AI]
+      summary: Yêu cầu AI giải thích snapshot
+      description: Quyền WORKSPACE_MANAGER; chỉ nhận snapshot hiện hành của task có mức MEDIUM hoặc HIGH (409 SNAPSHOT_NOT_CURRENT, 422 AI_SNAPSHOT_LEVEL_NOT_SUPPORTED). Nếu đã có kết quả SUCCESS cho snapshot tương đương thì trả lại kết quả đó với reused=true và không gọi AI. Sau khi provider hoàn tất, backend kiểm tra lại snapshot hiện hành trước khi lưu/trả; nếu dữ liệu task đã đổi thì recommendation vẫn gắn với snapshot gốc, response có `isCurrent=false` và kết quả không được gắn vào snapshot mới. Khi AI lỗi, backend lưu bản ghi FAILED rồi trả 502 hoặc 503 kèm `snapshotId` và `fallbackExplanation` dựng từ evidence đã lưu; risk và evidence không bị ảnh hưởng, Manager có thể gọi lại. Provider và model do CWRM-16 chốt, không thuộc ADR-001.
+      x-permission: WORKSPACE_MANAGER
+      requestBody: {$ref: '#/components/requestBodies/EmptyOptional'}
+      responses:
+        '200': {description: 'Kết quả SUCCESS, mới tạo hoặc tái sử dụng', content: {application/json: {schema: {$ref: '#/components/schemas/AIExplanationResult'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/RuleViolation'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        '502': {$ref: '#/components/responses/AIGatewayError'}
+        '503': {$ref: '#/components/responses/AIUnavailable'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /ai-recommendations/{recommendationId}:
+    parameters:
+      - {$ref: '#/components/parameters/RecommendationId'}
+    get:
+      operationId: getAIRecommendation
+      tags: [AI]
+      summary: Xem recommendation đã lưu
+      description: Quyền WORKSPACE_MANAGER; trả bản ghi đã lưu, SUCCESS hoặc FAILED, kèm isCurrent so với snapshot hiện hành của task.
+      x-permission: WORKSPACE_MANAGER
+      responses:
+        '200': {description: Recommendation/fallback, content: {application/json: {schema: {$ref: '#/components/schemas/AIExplanationResult'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+  /tasks/{taskId}/history:
+    parameters:
+      - {$ref: '#/components/parameters/TaskId'}
+      - {$ref: '#/components/parameters/Page'}
+      - {$ref: '#/components/parameters/PageSize'}
+    get:
+      operationId: listTaskAuditHistory
+      tags: [Audit]
+      summary: Xem lịch sử task
+      description: Quyền TASK_ACCESS; audit append-only, chỉ đọc.
+      x-permission: TASK_ACCESS
+      responses:
+        '200': {description: Lịch sử phân trang, content: {application/json: {schema: {$ref: '#/components/schemas/AuditPage'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/UnexpectedError'}
+        default: {$ref: '#/components/responses/UnexpectedError'}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    WorkspaceId: {name: workspaceId, in: path, required: true, schema: {type: string, format: uuid}}
+    WorkspaceIdQuery: {name: workspaceId, in: query, required: true, description: 'Workspace đang làm việc. Một tài khoản có thể thuộc nhiều workspace', schema: {type: string, format: uuid}}
+    UserId: {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+    TeamId: {name: teamId, in: path, required: true, schema: {type: string, format: uuid}}
+    RoleId: {name: roleId, in: path, required: true, schema: {type: string, format: uuid}}
+    SkillId: {name: skillId, in: path, required: true, schema: {type: string, format: uuid}}
+    MilestoneId: {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+    TaskId: {name: taskId, in: path, required: true, schema: {type: string, format: uuid}}
+    AssignmentId: {name: assignmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    RequestId: {name: requestId, in: path, required: true, schema: {type: string, format: uuid}}
+    BlockerId: {name: blockerId, in: path, required: true, schema: {type: string, format: uuid}}
+    DependencyId: {name: dependencyId, in: path, required: true, schema: {type: string, format: uuid}}
+    InvitationId: {name: invitationId, in: path, required: true, schema: {type: string, format: uuid}}
+    SnapshotId: {name: snapshotId, in: path, required: true, schema: {type: string, format: uuid}}
+    AlertId: {name: alertId, in: path, required: true, schema: {type: string, format: uuid}}
+    RecommendationId: {name: recommendationId, in: path, required: true, schema: {type: string, format: uuid}}
+    Page: {name: page, in: query, required: false, schema: {type: integer, minimum: 1, default: 1}}
+    PageSize: {name: pageSize, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+  requestBodies:
+    VersionAction:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/VersionActionRequest'}
+    EmptyOptional:
+      required: false
+      content:
+        application/json:
+          schema: {type: object, additionalProperties: false}
+  responses:
+    UnexpectedError:
+      description: Lỗi hệ thống không dự kiến (500 INTERNAL_ERROR)
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    BadRequest:
+      description: Payload hoặc tham số không hợp lệ
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Unauthorized:
+      description: Thiếu hoặc token không hợp lệ
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: Không đủ quyền hoặc ngoài phạm vi workspace/team
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    NotFound:
+      description: Không tìm thấy tài nguyên trong phạm vi được phép
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Conflict:
+      description: Xung đột version, capacity, trạng thái hoặc dữ liệu duy nhất
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    RuleViolation:
+      description: Dữ liệu hợp lệ về cấu trúc nhưng vi phạm quy tắc nghiệp vụ
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    RiskInputInvalid:
+      description: '422 RISK_INPUT_INVALID khi input risk thiếu hoặc sai miền; details là danh sách lỗi theo field, không có stack trace và không tạo snapshot.'
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          example:
+            error:
+              code: RISK_INPUT_INVALID
+              message: Không thể đánh giá risk vì thiếu dữ liệu bắt buộc.
+              details:
+                - field: deadlineAt
+                  problem: REQUIRED
+    RiskUnavailable:
+      description: Risk engine không hoàn tất; snapshot cũ không được coi là hiện hành (503 RISK_EVALUATION_FAILED)
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    AIGatewayError:
+      description: 502 AI_PROVIDER_ERROR hoặc AI_OUTPUT_INVALID. details gồm retryable, recommendationId của bản ghi FAILED đã lưu, snapshotId và fallbackExplanation dựng từ evidence đã lưu; risk/evidence vẫn đọc được.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          example:
+            error:
+              code: AI_OUTPUT_INVALID
+              message: Kết quả AI thiếu trường hoặc tham chiếu evidence không tồn tại. Bạn có thể thử lại.
+              details:
+                retryable: true
+                recommendationId: 550e8400-e29b-41d4-a716-446655440062
+                snapshotId: 550e8400-e29b-41d4-a716-446655440051
+                fallbackExplanation: 'R03 kích hoạt vì còn 40 giờ tới deadline và tiến độ 30%, dưới 50%. Mức cơ sở MEDIUM được nâng lên HIGH do priority HIGH.'
+    AIUnavailable:
+      description: 503 AI_TIMEOUT hoặc AI_QUOTA_EXCEEDED. details gồm retryable, recommendationId của bản ghi FAILED đã lưu, snapshotId và fallbackExplanation dựng từ evidence đã lưu; risk/evidence vẫn đọc được.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          example:
+            error:
+              code: AI_TIMEOUT
+              message: Dịch vụ AI không phản hồi kịp. Bạn có thể thử lại.
+              details:
+                retryable: true
+                recommendationId: 550e8400-e29b-41d4-a716-446655440062
+                snapshotId: 550e8400-e29b-41d4-a716-446655440051
+                fallbackExplanation: 'R03 kích hoạt vì còn 40 giờ tới deadline và tiến độ 30%, dưới 50%. Mức cơ sở MEDIUM được nâng lên HIGH do priority HIGH.'
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [ok]}
+    Account:
+      type: object
+      required: [id, email, displayName, isActive]
+      properties:
+        id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        displayName: {type: string}
+        isActive: {type: boolean}
+    RegisterRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email: {type: string, format: email, maxLength: 320}
+        password: {type: string, format: password}
+        displayName: {type: string, minLength: 1, maxLength: 120}
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, format: password}
+    AuthSession:
+      type: object
+      required: [accessToken, tokenType, expiresIn, account]
+      properties:
+        accessToken: {type: string}
+        tokenType: {type: string, enum: [Bearer]}
+        expiresIn: {type: integer, description: Số giây còn hiệu lực}
+        account: {$ref: '#/components/schemas/Account'}
+    ProfilePatchRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName: {type: string, minLength: 1, maxLength: 120}
+    Workspace:
+      type: object
+      required: [id, name, createdByUserId, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        createdByUserId: {type: string, format: uuid}
+        createdAt: {type: string, format: date-time}
+    WorkspaceCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+    WorkspacePatchRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+    WorkspaceMembership:
+      type: object
+      required: [id, workspaceId, userId, role, status]
+      properties:
+        id: {type: string, format: uuid}
+        workspaceId: {type: string, format: uuid}
+        userId: {type: string, format: uuid}
+        role: {type: string, enum: [MANAGER, MEMBER]}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        displayName: {type: string}
+        roleIds: {type: array, items: {type: string, format: uuid}}
+        skillIds: {type: array, items: {type: string, format: uuid}}
+    MembershipPatchRequest:
+      type: object
+      anyOf:
+        - required: [role]
+        - required: [status]
+      properties:
+        role: {type: string, enum: [MANAGER, MEMBER]}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        reason: {type: string, minLength: 1}
+    WorkspaceInvitation:
+      type: object
+      required: [id, workspaceId, workspaceName, invitedUserId, status, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        workspaceId: {type: string, format: uuid}
+        workspaceName: {type: string}
+        invitedUserId: {type: string, format: uuid}
+        invitedByUserId: {type: string, format: uuid}
+        status: {type: string, enum: [PENDING, ACCEPTED, DECLINED]}
+        createdAt: {type: string, format: date-time}
+    InvitationCreateRequest:
+      type: object
+      required: [email]
+      properties:
+        email: {type: string, format: email, description: Email phải khớp tài khoản đã đăng ký}
+    Team:
+      type: object
+      required: [id, workspaceId, name]
+      properties:
+        id: {type: string, format: uuid}
+        workspaceId: {type: string, format: uuid}
+        name: {type: string}
+    TeamCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+    TeamPatchRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+    TeamMemberCreateRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId: {type: string, format: uuid}
+    TeamMembership:
+      type: object
+      required: [id, teamId, userId, status, workspaceRole]
+      properties:
+        id: {type: string, format: uuid}
+        teamId: {type: string, format: uuid}
+        userId: {type: string, format: uuid}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        workspaceRole: {type: string, enum: [MANAGER, MEMBER], description: 'Quyền của thành viên trong workspace; dùng để lọc Manager khi chọn A.'}
+        displayName: {type: string}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440011
+        teamId: 550e8400-e29b-41d4-a716-446655440010
+        userId: 550e8400-e29b-41d4-a716-446655440001
+        status: ACTIVE
+        workspaceRole: MANAGER
+        displayName: Nguyễn An
+    Label:
+      type: object
+      required: [id, workspaceId, name]
+      properties:
+        id: {type: string, format: uuid}
+        workspaceId: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: string, nullable: true}
+    LabelCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string}
+    LabelPatchRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string}
+    LabelSetRequest:
+      type: object
+      required: [labelIds]
+      properties:
+        labelIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+    LabelSet:
+      type: object
+      required: [labelIds]
+      properties:
+        labelIds: {type: array, items: {type: string, format: uuid}}
+    Milestone:
+      type: object
+      required: [id, teamId, name, deadlineAt]
+      properties:
+        id: {type: string, format: uuid}
+        teamId: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: string, nullable: true}
+        deadlineAt: {type: string, format: date-time}
+    MilestoneCreateRequest:
+      type: object
+      required: [name, deadlineAt]
+      properties:
+        name: {type: string}
+        description: {type: string}
+        deadlineAt: {type: string, format: date-time}
+    MilestonePatchRequest:
+      type: object
+      required: [name, deadlineAt]
+      properties:
+        name: {type: string}
+        description: {type: string}
+        deadlineAt: {type: string, format: date-time}
+    TaskStatus:
+      type: string
+      enum: [TO_DO, IN_PROGRESS, BLOCKED, REVIEW, DONE]
+    AssignmentStatus:
+      type: string
+      enum: [PENDING_ACCEPTANCE, ACCEPTED, DECLINED]
+    RequestStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED, WITHDRAWN]
+    RiskLevel:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    Task:
+      type: object
+      required: [id, teamId, teamName, milestoneName, title, accountableUserId, accountableUser, status, assignmentMode, priority, deadlineAt, deadlineType, requiredPeople, progress, version, responsibleUserIds, responsibleUsers, requiredRoleIds, requiredSkillIds, predecessorIds, predecessors, successorIds, risk, availableActions, myRequestStatus, updatedAt]
+      properties:
+        id: {type: string, format: uuid}
+        teamId: {type: string, format: uuid}
+        teamName: {type: string}
+        milestoneId: {type: string, format: uuid, nullable: true}
+        milestoneName: {type: string, nullable: true}
+        title: {type: string}
+        description: {type: string, nullable: true}
+        accountableUserId: {type: string, format: uuid}
+        accountableUser:
+          type: object
+          required: [userId, displayName]
+          properties:
+            userId: {type: string, format: uuid}
+            displayName: {type: string}
+        responsibleUserIds: {type: array, description: R từ assignment ACCEPTED hiệu lực, items: {type: string, format: uuid}}
+        responsibleUsers:
+          type: array
+          description: R hiệu lực kèm tên hiển thị.
+          items:
+            type: object
+            required: [userId, displayName]
+            properties:
+              userId: {type: string, format: uuid}
+              displayName: {type: string}
+        consultantUserIds: {type: array, items: {type: string, format: uuid}}
+        informedUserIds: {type: array, items: {type: string, format: uuid}}
+        requiredRoleIds: {type: array, items: {type: string, format: uuid}}
+        requiredSkillIds: {type: array, items: {type: string, format: uuid}}
+        predecessorIds: {type: array, items: {type: string, format: uuid}}
+        predecessors:
+          type: array
+          description: Predecessor kèm dữ liệu tối thiểu để hiển thị danh sách mà không gọi tra cứu từng task.
+          items:
+            type: object
+            required: [taskId, title, status]
+            properties:
+              taskId: {type: string, format: uuid}
+              title: {type: string}
+              status: {$ref: '#/components/schemas/TaskStatus'}
+        successorIds: {type: array, items: {type: string, format: uuid}}
+        status: {$ref: '#/components/schemas/TaskStatus'}
+        assignmentMode: {type: string, enum: [DIRECT, OPEN_WORK]}
+        openWorkOpen: {type: boolean}
+        priority: {$ref: '#/components/schemas/Priority'}
+        deadlineAt: {type: string, format: date-time}
+        deadlineType: {type: string, enum: [FIXED, FLEXIBLE]}
+        effortEstimateHours: {type: number, minimum: 0, nullable: true}
+        effortActualHours: {type: number, minimum: 0, nullable: true}
+        requiredPeople: {type: integer, minimum: 1}
+        progress: {type: integer, minimum: 0, maximum: 100}
+        resultText: {type: string, nullable: true}
+        resultUrl: {type: string, format: uri, nullable: true}
+        openBlockerCount: {type: integer, minimum: 0}
+        occupiedSlots: {type: integer, minimum: 0, description: 'Số chỗ đang giữ, gồm R ACCEPTED hiệu lực và đề nghị DIRECT đang PENDING_ACCEPTANCE. Không vượt requiredPeople'}
+        affectedTaskCount: {type: integer, minimum: 0, description: 'Số successor chưa DONE ở mọi tầng, không đếm trùng (Scope S09)'}
+        risk:
+          allOf:
+            - {$ref: '#/components/schemas/TaskRiskSummary'}
+          type: object
+          nullable: true
+          description: 'null nếu task chưa có snapshot risk hợp lệ.'
+        availableActions:
+          type: array
+          description: >
+            Gợi ý thao tác mà người gọi có thể làm ngay trên task để UI hiển thị hoặc vô hiệu hóa nút.
+            Đây không thay thế kiểm tra server; thao tác thật vẫn có thể trả 409 hoặc 422.
+          items:
+            type: string
+            enum: [EDIT_TASK, UPDATE_CAPACITY, TRANSFER_ACCOUNTABILITY, START, UPDATE_PROGRESS, SUBMIT_REVIEW, APPROVE, RETURN, CREATE_MANAGEMENT_INTERVENTION, CREATE_DIRECT_ASSIGNMENT, RESPOND_TO_ASSIGNMENT, END_ASSIGNMENT, OPEN_OPEN_WORK, CLOSE_OPEN_WORK, REQUEST_OPEN_WORK, WITHDRAW_REQUEST, APPROVE_OPEN_WORK_REQUEST, REJECT_OPEN_WORK_REQUEST, UPDATE_RACI_CONTACTS, CREATE_BLOCKER, RESOLVE_BLOCKER, CREATE_COMMENT, ADD_DEPENDENCY, REMOVE_DEPENDENCY, EVALUATE_RISK, REQUEST_AI_EXPLANATION]
+        myRequestStatus:
+          type: string
+          nullable: true
+          enum: [PENDING, APPROVED, REJECTED, WITHDRAWN, null]
+          description: Trạng thái request Open Work gần nhất của người gọi trên task này (cùng bộ giá trị với RequestStatus); null nếu chưa gửi request.
+        startedAt: {type: string, format: date-time, nullable: true}
+        completedAt: {type: string, format: date-time, nullable: true}
+        version: {type: integer, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440103
+        teamId: 550e8400-e29b-41d4-a716-446655440010
+        teamName: Marketing
+        milestoneName: null
+        title: Thiết kế poster chiến dịch Marketing
+        accountableUserId: 550e8400-e29b-41d4-a716-446655440001
+        accountableUser:
+          userId: 550e8400-e29b-41d4-a716-446655440001
+          displayName: Nguyễn An
+        responsibleUserIds: [550e8400-e29b-41d4-a716-446655440003]
+        responsibleUsers:
+          - userId: 550e8400-e29b-41d4-a716-446655440003
+            displayName: Trần Bình
+        requiredRoleIds: [550e8400-e29b-41d4-a716-446655440020]
+        requiredSkillIds: [550e8400-e29b-41d4-a716-446655440021]
+        predecessorIds: []
+        predecessors: []
+        successorIds: [550e8400-e29b-41d4-a716-446655440104]
+        status: BLOCKED
+        assignmentMode: OPEN_WORK
+        openWorkOpen: false
+        priority: HIGH
+        deadlineAt: '2026-11-11T19:00:00Z'
+        deadlineType: FLEXIBLE
+        requiredPeople: 1
+        progress: 30
+        openBlockerCount: 1
+        occupiedSlots: 1
+        affectedTaskCount: 1
+        risk:
+          snapshotId: 550e8400-e29b-41d4-a716-446655440051
+          riskLevel: HIGH
+          evaluatedAt: '2026-11-10T03:00:00Z'
+          isCurrent: true
+          triggeredRules: [R03]
+        availableActions: [UPDATE_PROGRESS, CREATE_BLOCKER, CREATE_COMMENT]
+        myRequestStatus: null
+        version: 4
+        updatedAt: '2026-11-10T03:00:00Z'
+    TaskRiskSummary:
+      type: object
+      description: Tóm tắt risk của task để hiển thị ở danh sách và dashboard; Task.risk là null nếu chưa có snapshot hợp lệ.
+      required: [snapshotId, riskLevel, evaluatedAt, isCurrent, triggeredRules]
+      properties:
+        snapshotId: {type: string, format: uuid}
+        riskLevel: {$ref: '#/components/schemas/RiskLevel'}
+        evaluatedAt: {type: string, format: date-time}
+        isCurrent: {type: boolean, description: 'false khi dữ liệu task đã đổi sau snapshot hoặc lần đánh giá gần nhất lỗi'}
+        triggeredRules: {type: array, uniqueItems: true, items: {type: string, pattern: '^R(0[1-9]|1[0-2])$'}, description: 'Rule IDs R01–R12 đã kích hoạt, dùng cho dashboard và danh sách task.'}
+    TaskCreateRequest:
+      type: object
+      required: [teamId, title, accountableUserId, priority, deadlineAt, deadlineType, requiredPeople, assignmentMode]
+      properties:
+        teamId: {type: string, format: uuid}
+        title: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string}
+        accountableUserId: {type: string, format: uuid}
+        milestoneId: {type: string, format: uuid}
+        priority: {$ref: '#/components/schemas/Priority'}
+        deadlineAt: {type: string, format: date-time}
+        deadlineType: {type: string, enum: [FIXED, FLEXIBLE]}
+        effortEstimateHours: {type: number, minimum: 0}
+        requiredPeople: {type: integer, minimum: 1}
+        assignmentMode: {type: string, enum: [DIRECT, OPEN_WORK]}
+        openWorkOpen: {type: boolean, default: false}
+        requiredRoleIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        requiredSkillIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+    TaskPatchRequest:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {type: integer, minimum: 1}
+        title: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, nullable: true}
+        milestoneId: {type: string, format: uuid, nullable: true}
+        priority: {$ref: '#/components/schemas/Priority'}
+        deadlineAt: {type: string, format: date-time}
+        deadlineType: {type: string, enum: [FIXED, FLEXIBLE]}
+        effortEstimateHours: {type: number, minimum: 0, nullable: true}
+        assignmentMode: {type: string, enum: [DIRECT, OPEN_WORK], description: Chỉ đổi trước khi phát sinh assignment/request}
+        requiredRoleIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        requiredSkillIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        reason: {type: string, description: Bắt buộc nếu đổi deadline FIXED}
+    CapacityPatchRequest:
+      type: object
+      required: [requiredPeople, expectedVersion]
+      properties:
+        requiredPeople: {type: integer, minimum: 1}
+        expectedVersion: {type: integer, minimum: 1}
+    VersionActionRequest:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {type: integer, minimum: 1}
+    SubmitReviewRequest:
+      type: object
+      required: [expectedVersion]
+      anyOf:
+        - required: [resultText]
+        - required: [resultUrl]
+      properties:
+        expectedVersion: {type: integer, minimum: 1}
+        resultText: {type: string, minLength: 1}
+        resultUrl: {type: string, format: uri}
+    ReturnTaskRequest:
+      type: object
+      required: [expectedVersion, reason, progress]
+      properties:
+        expectedVersion: {type: integer, minimum: 1}
+        reason: {type: string, minLength: 1}
+        progress: {type: integer, minimum: 0, maximum: 99}
+    TransferAccountabilityRequest:
+      type: object
+      required: [newAccountableUserId, reason, expectedVersion]
+      properties:
+        newAccountableUserId: {type: string, format: uuid}
+        reason: {type: string, minLength: 1}
+        expectedVersion: {type: integer, minimum: 1}
+    Assignment:
+      type: object
+      required: [id, taskId, userId, assignedByUserId, status, source, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        taskId: {type: string, format: uuid}
+        taskTitle: {type: string, description: Tiêu đề task để hiển thị ở danh sách}
+        userId: {type: string, format: uuid}
+        assignedByUserId: {type: string, format: uuid, description: 'Manager gửi đề nghị DIRECT hoặc duyệt request OPEN_WORK'}
+        status: {$ref: '#/components/schemas/AssignmentStatus'}
+        source: {type: string, enum: [DIRECT, OPEN_WORK]}
+        openWorkRequestId: {type: string, format: uuid, nullable: true}
+        respondedAt: {type: string, format: date-time, nullable: true}
+        responseReason: {type: string, nullable: true}
+        endedAt: {type: string, format: date-time, nullable: true, description: 'Có giá trị khi Manager đóng đề nghị hoặc kết thúc phân công. status không đổi thành DECLINED'}
+        endedByUserId: {type: string, format: uuid, nullable: true}
+        endReason: {type: string, nullable: true}
+        createdAt: {type: string, format: date-time}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440031
+        taskId: 550e8400-e29b-41d4-a716-446655440103
+        taskTitle: Thiết kế poster chiến dịch Marketing
+        userId: 550e8400-e29b-41d4-a716-446655440003
+        assignedByUserId: 550e8400-e29b-41d4-a716-446655440001
+        status: ACCEPTED
+        source: OPEN_WORK
+        openWorkRequestId: 550e8400-e29b-41d4-a716-446655440041
+        createdAt: '2026-11-09T02:30:00Z'
+    AssignmentList:
+      type: array
+      items: {$ref: '#/components/schemas/Assignment'}
+    DirectAssignmentCreateRequest:
+      type: object
+      required: [userIds, expectedVersion]
+      properties:
+        userIds: {type: array, minItems: 1, uniqueItems: true, items: {type: string, format: uuid}}
+        expectedVersion: {type: integer, minimum: 1}
+    AssignmentResponseRequest:
+      oneOf:
+        - type: object
+          required: [response]
+          properties:
+            response: {type: string, enum: [ACCEPTED]}
+        - type: object
+          required: [response, reason]
+          properties:
+            response: {type: string, enum: [DECLINED]}
+            reason: {type: string, minLength: 1}
+    ReasonVersionRequest:
+      type: object
+      required: [reason, expectedVersion]
+      properties:
+        reason: {type: string, minLength: 1}
+        expectedVersion: {type: integer, minimum: 1}
+    OpenWorkRequest:
+      type: object
+      required: [id, taskId, requesterUserId, status, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        taskId: {type: string, format: uuid}
+        taskTitle: {type: string, description: Tiêu đề task để hiển thị ở danh sách}
+        requesterUserId: {type: string, format: uuid}
+        status: {$ref: '#/components/schemas/RequestStatus'}
+        reason: {type: string, nullable: true}
+        decisionReason: {type: string, nullable: true, description: 'Lý do Manager từ chối, hoặc lý do hệ thống khi đăng ký đóng'}
+        decidedByUserId: {type: string, format: uuid, nullable: true}
+        decidedAt: {type: string, format: date-time, nullable: true}
+        withdrawnAt: {type: string, format: date-time, nullable: true}
+        createdAt: {type: string, format: date-time}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440041
+        taskId: 550e8400-e29b-41d4-a716-446655440103
+        taskTitle: Thiết kế poster chiến dịch Marketing
+        requesterUserId: 550e8400-e29b-41d4-a716-446655440003
+        status: APPROVED
+        reason: Tôi có thể thiết kế poster bằng Figma.
+        decidedByUserId: 550e8400-e29b-41d4-a716-446655440001
+        decidedAt: '2026-11-09T02:30:00Z'
+        createdAt: '2026-11-09T02:00:00Z'
+    OpenWorkRequestCreate:
+      type: object
+      properties:
+        reason: {type: string, maxLength: 1000}
+    RejectRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1}
+    ApprovedRequest:
+      type: object
+      required: [request, assignment]
+      properties:
+        request: {$ref: '#/components/schemas/OpenWorkRequest'}
+        assignment: {$ref: '#/components/schemas/Assignment'}
+    Eligibility:
+      type: object
+      required: [eligible, reasons, matchedRoleIds, missingRoleIds, missingSkillIds]
+      properties:
+        eligible: {type: boolean}
+        reasons:
+          type: array
+          items:
+            type: object
+            required: [code, params]
+            properties:
+              code: {type: string, enum: [NOT_TEAM_MEMBER, MISSING_REQUIRED_ROLE, MISSING_REQUIRED_SKILL, REGISTRATION_CLOSED, TASK_NOT_TO_DO, REQUEST_ALREADY_PENDING, ALREADY_RESPONSIBLE, CAPACITY_FULL]}
+              params: {type: object, additionalProperties: true}
+        matchedRoleIds: {type: array, items: {type: string, format: uuid}}
+        missingRoleIds: {type: array, items: {type: string, format: uuid}}
+        missingSkillIds: {type: array, items: {type: string, format: uuid}}
+      example:
+        eligible: false
+        reasons:
+          - code: MISSING_REQUIRED_ROLE
+            params:
+              roleIds: [550e8400-e29b-41d4-a716-446655440020]
+          - code: MISSING_REQUIRED_SKILL
+            params:
+              skillIds: [550e8400-e29b-41d4-a716-446655440021]
+        matchedRoleIds: []
+        missingRoleIds: [550e8400-e29b-41d4-a716-446655440020]
+        missingSkillIds: [550e8400-e29b-41d4-a716-446655440021]
+    RaciView:
+      type: object
+      required: [accountableUserId, responsibleUserIds, consultantUserIds, informedUserIds]
+      properties:
+        accountableUserId: {type: string, format: uuid}
+        responsibleUserIds: {type: array, items: {type: string, format: uuid}, description: Chỉ suy ra từ assignment ACCEPTED hiệu lực}
+        consultantUserIds: {type: array, items: {type: string, format: uuid}}
+        informedUserIds: {type: array, items: {type: string, format: uuid}}
+    RaciContactsRequest:
+      type: object
+      required: [consultantUserIds, informedUserIds, expectedVersion]
+      properties:
+        consultantUserIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        informedUserIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        expectedVersion: {type: integer, minimum: 1}
+    ProgressUpdate:
+      type: object
+      required: [id, taskId, authorUserId, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        taskId: {type: string, format: uuid}
+        authorUserId: {type: string, format: uuid}
+        progress: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        effortActualHours: {type: number, minimum: 0, nullable: true}
+        resultText: {type: string, nullable: true, description: Có khi bản ghi phát sinh từ lần gửi kết quả review}
+        resultUrl: {type: string, format: uri, nullable: true}
+        note: {type: string, nullable: true}
+        createdAt: {type: string, format: date-time}
+    ProgressUpdateRequest:
+      type: object
+      required: [expectedVersion]
+      anyOf:
+        - required: [progress]
+        - required: [effortActualHours]
+      properties:
+        progress: {type: integer, minimum: 0, maximum: 100}
+        effortActualHours: {type: number, minimum: 0}
+        note: {type: string, maxLength: 2000}
+        expectedVersion: {type: integer, minimum: 1}
+    ProgressUpdateResult:
+      type: object
+      required: [update, task]
+      properties:
+        update: {$ref: '#/components/schemas/ProgressUpdate'}
+        task: {$ref: '#/components/schemas/Task'}
+    ManagerInterventionRequest:
+      type: object
+      required: [reason, expectedVersion]
+      anyOf:
+        - required: [progress]
+        - required: [effortActualHours]
+      properties:
+        reason: {type: string, minLength: 1}
+        expectedVersion: {type: integer, minimum: 1}
+        progress: {type: integer, minimum: 0, maximum: 100}
+        effortActualHours: {type: number, minimum: 0}
+    ManagerIntervention:
+      type: object
+      description: Bản ghi audit được trình bày thành response intervention; không phải bảng lưu riêng.
+      required: [id, taskId, actorUserId, reason, progressBefore, progressAfter, effortActualHoursBefore, effortActualHoursAfter, createdAt]
+      properties:
+        id: {type: string, format: uuid, description: ID của audit record.}
+        taskId: {type: string, format: uuid}
+        actorUserId: {type: string, format: uuid}
+        reason: {type: string}
+        progressBefore: {type: integer, minimum: 0, maximum: 100}
+        progressAfter: {type: integer, minimum: 0, maximum: 100}
+        effortActualHoursBefore: {type: number, minimum: 0, nullable: true}
+        effortActualHoursAfter: {type: number, minimum: 0, nullable: true}
+        createdAt: {type: string, format: date-time}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440081
+        taskId: 550e8400-e29b-41d4-a716-446655440103
+        actorUserId: 550e8400-e29b-41d4-a716-446655440001
+        reason: Điều chỉnh tiến độ sau khi rà soát công việc.
+        progressBefore: 25
+        progressAfter: 30
+        effortActualHoursBefore: null
+        effortActualHoursAfter: 4
+        createdAt: '2026-11-10T03:00:00Z'
+    ManagerInterventionResult:
+      type: object
+      required: [intervention, task]
+      properties:
+        intervention: {$ref: '#/components/schemas/ManagerIntervention'}
+        task: {$ref: '#/components/schemas/Task'}
+      example:
+        intervention:
+          id: 550e8400-e29b-41d4-a716-446655440081
+          taskId: 550e8400-e29b-41d4-a716-446655440103
+          actorUserId: 550e8400-e29b-41d4-a716-446655440001
+          reason: Điều chỉnh tiến độ sau khi rà soát công việc.
+          progressBefore: 25
+          progressAfter: 30
+          effortActualHoursBefore: null
+          effortActualHoursAfter: 4
+          createdAt: '2026-11-10T03:00:00Z'
+        task:
+          id: 550e8400-e29b-41d4-a716-446655440103
+          teamId: 550e8400-e29b-41d4-a716-446655440010
+          teamName: Marketing
+          milestoneName: null
+          title: Thiết kế poster chiến dịch Marketing
+          accountableUserId: 550e8400-e29b-41d4-a716-446655440001
+          accountableUser: {userId: 550e8400-e29b-41d4-a716-446655440001, displayName: Nguyễn An}
+          responsibleUserIds: [550e8400-e29b-41d4-a716-446655440003]
+          responsibleUsers:
+            - {userId: 550e8400-e29b-41d4-a716-446655440003, displayName: Trần Bình}
+          requiredRoleIds: [550e8400-e29b-41d4-a716-446655440020]
+          requiredSkillIds: [550e8400-e29b-41d4-a716-446655440021]
+          predecessorIds: []
+          predecessors: []
+          successorIds: [550e8400-e29b-41d4-a716-446655440104]
+          status: IN_PROGRESS
+          assignmentMode: OPEN_WORK
+          priority: HIGH
+          deadlineAt: '2026-11-11T19:00:00Z'
+          deadlineType: FLEXIBLE
+          requiredPeople: 1
+          progress: 30
+          risk:
+            snapshotId: 550e8400-e29b-41d4-a716-446655440051
+            riskLevel: HIGH
+            evaluatedAt: '2026-11-10T03:00:00Z'
+            isCurrent: true
+            triggeredRules: [R03]
+          availableActions: [UPDATE_PROGRESS, CREATE_COMMENT]
+          myRequestStatus: null
+          version: 5
+          updatedAt: '2026-11-10T03:00:00Z'
+    Blocker:
+      type: object
+      required: [id, taskId, createdByUserId, description, status, openedAt]
+      properties:
+        id: {type: string, format: uuid}
+        taskId: {type: string, format: uuid}
+        createdByUserId: {type: string, format: uuid}
+        description: {type: string}
+        status: {type: string, enum: [OPEN, RESOLVED]}
+        openedAt: {type: string, format: date-time}
+        resolvedByUserId: {type: string, format: uuid, nullable: true}
+        resolvedAt: {type: string, format: date-time, nullable: true}
+        resolutionNote: {type: string, nullable: true}
+    BlockerCreateRequest:
+      type: object
+      required: [description, expectedVersion]
+      properties:
+        description: {type: string, minLength: 1}
+        expectedVersion: {type: integer, minimum: 1}
+    ResolveBlockerRequest:
+      type: object
+      required: [resolutionNote, expectedVersion]
+      properties:
+        resolutionNote: {type: string, minLength: 1}
+        expectedVersion: {type: integer, minimum: 1}
+    BlockerResult:
+      type: object
+      required: [blocker, task]
+      properties:
+        blocker: {$ref: '#/components/schemas/Blocker'}
+        task: {$ref: '#/components/schemas/Task'}
+    TaskComment:
+      type: object
+      required: [id, taskId, authorUserId, body, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        taskId: {type: string, format: uuid}
+        authorUserId: {type: string, format: uuid}
+        body: {type: string}
+        createdAt: {type: string, format: date-time}
+    CommentCreateRequest:
+      type: object
+      required: [body]
+      properties:
+        body: {type: string, minLength: 1, maxLength: 5000}
+    TaskDependency:
+      type: object
+      required: [id, predecessorTaskId, successorTaskId, dependencyType]
+      properties:
+        id: {type: string, format: uuid}
+        predecessorTaskId: {type: string, format: uuid}
+        successorTaskId: {type: string, format: uuid}
+        dependencyType: {type: string, enum: [FINISH_TO_START]}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440071
+        predecessorTaskId: 550e8400-e29b-41d4-a716-446655440103
+        successorTaskId: 550e8400-e29b-41d4-a716-446655440104
+        dependencyType: FINISH_TO_START
+    DependencyCreateRequest:
+      type: object
+      required: [predecessorTaskId, expectedVersion]
+      properties:
+        predecessorTaskId: {type: string, format: uuid}
+        expectedVersion: {type: integer, minimum: 1}
+    ReasonRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1}
+    RiskEvidence:
+      type: object
+      required: [id, source, field, value]
+      properties:
+        id: {type: string, description: 'Ổn định trong phạm vi một snapshot, example: ev-01'}
+        source: {type: string, enum: [task, evaluation, rule, impact]}
+        ruleId: {type: string, pattern: '^R(0[1-9]|1[0-2])$'}
+        field:
+          type: string
+          description: >
+            Tên field camelCase. Các field hiện dùng gồm deadlineAt, progress, remainingHours,
+            overdueHours, priority, deadlineType, affectedTaskCount và các ngưỡng
+            remainingHoursMinExclusive, remainingHoursMaxInclusive, progressMaxExclusive.
+            Evidence ngưỡng dùng source=rule. Field và unit không bị khóa bằng enum;
+            unit hiện dùng là hours và percent, giá trị khác bổ sung theo đặc tả R04–R12 của CWRM-15.
+        value:
+          anyOf:
+            - {type: string, nullable: true}
+            - {type: number, nullable: true}
+            - {type: boolean, nullable: true}
+        unit: {type: string, description: 'Unit hiện dùng gồm hours và percent; không phải enum.'}
+    RiskSnapshot:
+      type: object
+      required: [id, taskId, riskLevel, baseLevel, evaluatedAt, ruleVersion, triggeredRules, evidence, inputFingerprint, triggerSource]
+      properties:
+        id: {type: string, format: uuid}
+        taskId: {type: string, format: uuid}
+        riskLevel: {$ref: '#/components/schemas/RiskLevel'}
+        baseLevel: {$ref: '#/components/schemas/RiskLevel'}
+        evaluatedAt: {type: string, format: date-time, description: 'Thời điểm UTC; giá trị kết thúc bằng Z.'}
+        ruleVersion: {type: string, minLength: 1}
+        triggeredRules: {type: array, uniqueItems: true, items: {type: string, pattern: '^R(0[1-9]|1[0-2])$'}}
+        evidence: {type: array, items: {$ref: '#/components/schemas/RiskEvidence'}}
+        inputFingerprint: {type: string, pattern: '^sha256:[0-9a-f]{64}$', description: 'SHA-256 của JSON chuẩn hóa dữ liệu gốc cùng ruleVersion; không gồm evaluatedAt hay số giờ suy ra. Digest trong example chỉ để minh họa pattern.'}
+        triggerSource: {type: string, enum: [EVENT, HOURLY, MANUAL]}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440051
+        taskId: 550e8400-e29b-41d4-a716-446655440103
+        riskLevel: HIGH
+        baseLevel: MEDIUM
+        evaluatedAt: '2026-11-10T03:00:00Z'
+        ruleVersion: example-rule-version
+        triggeredRules: [R03]
+        evidence:
+          - id: ev-01
+            source: task
+            ruleId: R03
+            field: deadlineAt
+            value: '2026-11-11T19:00:00Z'
+          - id: ev-02
+            source: evaluation
+            ruleId: R03
+            field: remainingHours
+            value: 40
+            unit: hours
+          - id: ev-03
+            source: task
+            ruleId: R03
+            field: progress
+            value: 30
+            unit: percent
+          - id: ev-04
+            source: impact
+            field: priority
+            value: HIGH
+          - id: ev-05
+            source: rule
+            ruleId: R03
+            field: remainingHoursMinExclusive
+            value: 24
+            unit: hours
+          - id: ev-06
+            source: rule
+            ruleId: R03
+            field: remainingHoursMaxInclusive
+            value: 48
+            unit: hours
+          - id: ev-07
+            source: rule
+            ruleId: R03
+            field: progressMaxExclusive
+            value: 50
+            unit: percent
+        inputFingerprint: sha256:0000000000000000000000000000000000000000000000000000000000000000
+        triggerSource: MANUAL
+    CurrentRisk:
+      type: object
+      description: >-
+        snapshot là snapshot hợp lệ gần nhất của task. Nếu task chưa từng có snapshot hợp lệ,
+        thuộc tính snapshot không có trong response; Task.risk ở trạng thái đó là null.
+      required: [isCurrent]
+      properties:
+        snapshot: {$ref: '#/components/schemas/RiskSnapshot'}
+        isCurrent: {type: boolean, description: 'false khi dữ liệu task đã đổi sau snapshot hoặc lần đánh giá gần nhất lỗi'}
+        evaluationError: {type: string, nullable: true, enum: [RISK_INPUT_INVALID, RISK_EVALUATION_FAILED, null], description: Mã lỗi của lần đánh giá gần nhất nếu thất bại. null nghĩa là không có lỗi gần nhất.}
+    RiskEvaluationResult:
+      type: object
+      required: [status, snapshot, isCurrent]
+      properties:
+        status: {type: string, enum: [SUCCESS]}
+        snapshot: {$ref: '#/components/schemas/RiskSnapshot'}
+        isCurrent: {type: boolean}
+    AIRecommendation:
+      type: object
+      required: [id, snapshotId, status, inputFingerprint, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        snapshotId: {type: string, format: uuid}
+        status: {type: string, enum: [SUCCESS, FAILED]}
+        provider: {type: string, nullable: true}
+        model: {type: string, nullable: true}
+        summary: {type: string, nullable: true}
+        linkedEvidenceIds: {type: array, items: {type: string}}
+        recommendations:
+          type: array
+          minItems: 2
+          maxItems: 3
+          items:
+            type: object
+            required: [action, rationale, caveat]
+            properties:
+              action: {type: string}
+              rationale: {type: string}
+              caveat: {type: string}
+        errorCode: {type: string, nullable: true}
+        inputFingerprint: {type: string, pattern: '^sha256:[0-9a-f]{64}$', description: 'Theo cùng pattern với RiskSnapshot.inputFingerprint; digest trong example chỉ minh họa.'}
+        latencyMs: {type: integer, minimum: 0, nullable: true, description: Telemetry tùy chọn do provider trả về.}
+        usage:
+          type: object
+          nullable: true
+          description: Telemetry tùy chọn; không lưu prompt thô.
+          required: [inputTokens, outputTokens]
+          properties:
+            inputTokens: {type: integer, minimum: 0}
+            outputTokens: {type: integer, minimum: 0}
+        createdAt: {type: string, format: date-time}
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440061
+        snapshotId: 550e8400-e29b-41d4-a716-446655440051
+        status: SUCCESS
+        provider: example-provider-not-selected
+        model: example-model-not-selected
+        summary: Poster còn 40 giờ, tiến độ 30%; R03 được nâng mức do priority HIGH.
+        linkedEvidenceIds: [ev-02, ev-03, ev-04]
+        recommendations:
+          - {action: Rà soát blocker và xác định người xử lý, rationale: Blocker có thể cản tiến độ, caveat: Risk không tự xác định nguyên nhân blocker.}
+          - {action: Manager cân nhắc bổ sung R nếu còn capacity, rationale: Có thể chia phần việc còn lại, caveat: Cần Member Accepted và cập nhật số người cần hợp lệ.}
+        inputFingerprint: sha256:0000000000000000000000000000000000000000000000000000000000000000
+        latencyMs: 1840
+        usage:
+          inputTokens: 780
+          outputTokens: 220
+        createdAt: '2026-11-10T03:02:00Z'
+    AIExplanationResult:
+      type: object
+      required: [recommendation, isCurrent, reused]
+      properties:
+        recommendation: {$ref: '#/components/schemas/AIRecommendation'}
+        isCurrent: {type: boolean, description: 'true khi cùng task có snapshot hiện hành với cùng inputFingerprint, riskLevel, baseLevel, triggeredRules và evidence được tham chiếu còn nguyên ý nghĩa'}
+        reused: {type: boolean, description: 'true khi trả lại kết quả SUCCESS đã lưu, không gọi AI'}
+        fallbackExplanation: {type: string, description: 'Chỉ có khi recommendation.status là FAILED. Diễn giải theo mẫu của rule'}
+    Alert:
+      type: object
+      required: [id, taskId, currentSnapshotId, riskLevel, status, openedAt, unread]
+      properties:
+        id: {type: string, format: uuid}
+        taskId: {type: string, format: uuid}
+        taskTitle: {type: string}
+        currentSnapshotId: {type: string, format: uuid, description: Snapshot đang gắn với cảnh báo để mở evidence}
+        riskLevel: {$ref: '#/components/schemas/RiskLevel'}
+        status: {type: string, enum: [OPEN, RESOLVED]}
+        openedAt: {type: string, format: date-time}
+        resolvedAt: {type: string, format: date-time, nullable: true}
+        unread: {type: boolean}
+    AlertRecipient:
+      type: object
+      required: [alertId, userId, recipientLabels, readAt]
+      properties:
+        alertId: {type: string, format: uuid}
+        userId: {type: string, format: uuid}
+        recipientLabels: {type: array, uniqueItems: true, items: {type: string, enum: [A, R]}}
+        readAt: {type: string, format: date-time, nullable: true}
+    AuditLog:
+      type: object
+      required: [id, actorKind, objectType, objectId, action, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        actorUserId: {type: string, format: uuid, nullable: true}
+        actorKind: {type: string, enum: [USER, SYSTEM]}
+        objectType: {type: string}
+        objectId: {type: string, format: uuid}
+        action: {type: string}
+        before: {type: object, nullable: true, additionalProperties: true}
+        after: {type: object, nullable: true, additionalProperties: true}
+        reason: {type: string, nullable: true}
+        createdAt: {type: string, format: date-time}
+    Dashboard:
+      type: object
+      required: [countsByStatus, countsByRiskLevel, pendingOpenWorkRequestCount, awaitingReviewCount, tasks, page, pageSize, total]
+      properties:
+        countsByStatus: {type: object, description: 'Số task theo từng TaskStatus trong phạm vi bộ lọc team', additionalProperties: {type: integer, minimum: 0}}
+        countsByRiskLevel: {type: object, description: 'Số task chưa DONE theo từng RiskLevel', additionalProperties: {type: integer, minimum: 0}}
+        pendingOpenWorkRequestCount: {type: integer, minimum: 0, description: Số request Open Work đang PENDING chờ duyệt}
+        awaitingReviewCount: {type: integer, minimum: 0, description: Số task REVIEW mà người gọi là A}
+        tasks: {type: array, items: {$ref: '#/components/schemas/Task'}}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1}
+        total: {type: integer, minimum: 0}
+      example:
+        countsByStatus: {TO_DO: 0, IN_PROGRESS: 0, BLOCKED: 0, REVIEW: 0, DONE: 0}
+        countsByRiskLevel: {LOW: 0, MEDIUM: 0, HIGH: 0}
+        pendingOpenWorkRequestCount: 0
+        awaitingReviewCount: 0
+        tasks: []
+        page: 1
+        pageSize: 20
+        total: 0
+    MyWorkDashboard:
+      type: object
+      description: Ba section được phân trang độc lập; counts đếm toàn bộ bản ghi theo workspace, không chỉ trang hiện tại.
+      required: [myTasks, pendingDirectAssignments, myOpenWorkRequests, counts]
+      properties:
+        myTasks: {$ref: '#/components/schemas/TaskPage'}
+        pendingDirectAssignments: {$ref: '#/components/schemas/AssignmentPage'}
+        myOpenWorkRequests: {$ref: '#/components/schemas/RequestPage'}
+        counts:
+          type: object
+          required: [myTasks, pendingDirectAssignments, myOpenWorkRequests]
+          properties:
+            myTasks: {type: integer, minimum: 0}
+            pendingDirectAssignments: {type: integer, minimum: 0}
+            myOpenWorkRequests: {type: integer, minimum: 0}
+      example:
+        myTasks: {items: [], page: 1, pageSize: 20, total: 0}
+        pendingDirectAssignments: {items: [], page: 1, pageSize: 20, total: 0}
+        myOpenWorkRequests: {items: [], page: 1, pageSize: 20, total: 0}
+        counts: {myTasks: 0, pendingDirectAssignments: 0, myOpenWorkRequests: 0}
+    PageMeta:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1}
+        total: {type: integer, minimum: 0}
+    WorkspacePage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Workspace'}}
+    MembershipPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/WorkspaceMembership'}}
+    TeamMembershipPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/TeamMembership'}}
+    InvitationPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/WorkspaceInvitation'}}
+    TeamPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Team'}}
+    RolePage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Label'}}
+    SkillPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Label'}}
+    MilestonePage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Milestone'}}
+    TaskPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Task'}}
+    AssignmentPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Assignment'}}
+    RequestPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/OpenWorkRequest'}}
+    DependencyPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/TaskDependency'}}
+    ProgressUpdatePage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/ProgressUpdate'}}
+    BlockerPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Blocker'}}
+    CommentPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/TaskComment'}}
+    RiskSnapshotPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/RiskSnapshot'}}
+    AlertPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Alert'}}
+    AuditPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageMeta'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/AuditLog'}}
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              enum: [VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VERSION_CONFLICT, CAPACITY_EXCEEDED, UNIQUE_CONFLICT, SNAPSHOT_NOT_CURRENT, INVALID_STATE_TRANSITION, NOT_ELIGIBLE, PREDECESSOR_NOT_DONE, OPEN_BLOCKERS_EXIST, NO_ACCEPTED_RESPONSIBLE, DEPENDENCY_CYCLE, CROSS_TEAM_DEPENDENCY, ACCOUNTABLE_NOT_MANAGER, LAST_MANAGER_REQUIRED, RESPONSIBILITY_REQUIRED, INVITEE_NOT_REGISTERED, RISK_INPUT_INVALID, RISK_EVALUATION_FAILED, AI_SNAPSHOT_LEVEL_NOT_SUPPORTED, AI_PROVIDER_ERROR, AI_TIMEOUT, AI_QUOTA_EXCEEDED, AI_OUTPUT_INVALID, SERVICE_UNAVAILABLE, INTERNAL_ERROR]
+            message: {type: string}
+            details:
+              oneOf:
+                - {type: object, additionalProperties: true}
+                - type: array
+                  items:
+                    type: object
+                    required: [field, problem]
+                    properties:
+                      field: {type: string}
+                      problem: {type: string}
+      example:
+        error:
+          code: PREDECESSOR_NOT_DONE
+          message: Task chưa thể bắt đầu vì predecessor chưa Done.
+          details:
+            predecessorTaskIds: [550e8400-e29b-41d4-a716-446655440102]
