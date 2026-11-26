@@ -272,7 +272,10 @@ describe('R09 cumulative horizons', () => {
     (kind) => {
       const data = workload();
       if (kind === 'missing') data.capacities = [];
-      if (kind === 'pending') data.capacities[0]!.status = 'PENDING_APPROVAL';
+      if (kind === 'pending') {
+        data.capacities[0]!.status = 'PENDING_APPROVAL';
+        data.capacities[0]!.approvedWeeklyHours = null;
+      }
       if (kind === 'zero') data.capacities[0]!.approvedWeeklyHours = 0;
       const result = evaluateRisk(data)[0]!;
       expect(result.evaluationCoverage).toBe('PARTIAL');

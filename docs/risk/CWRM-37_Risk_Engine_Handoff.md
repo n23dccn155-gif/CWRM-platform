@@ -12,7 +12,7 @@ Các kiểu input nằm tại `risk.types.ts`. Port này dùng trường/enums t
 - openBlockerSince là đầu đợt liên tục có ít nhất một blocker OPEN, giữ mốc qua các blocker mở chồng nhau. Adapter tính từ lịch sử đã commit và trả null khi tập OPEN rỗng.
 - currentInProgressSince/currentReviewSince là timestamp đợt hiện tại. lastQualifyingActivityAt chỉ từ hoạt động thực đã commit. Comment, no-op, cập nhật effort, priority, role và management intervention không đổi mốc hợp lệ này.
 - Assignment dùng status PENDING_ACCEPTANCE/ACCEPTED/DECLINED và endedAt. Chỉ ACCEPTED với endedAt null là active R. Join trùng nguyên dòng cùng ID được loại trùng. Hai assignment active khác ID của cùng user/task là input không hợp lệ.
-- Capacity dùng NOT_DECLARED/PENDING_APPROVAL/APPROVED và approvedWeeklyHours. 0 và null có ý nghĩa riêng. Thiếu record hoặc giá trị tạo gap.
+- Capacity dùng NOT_DECLARED/PENDING_APPROVAL/APPROVED và approvedWeeklyHours. Khi khai lại ở PENDING_APPROVAL, giá trị đã được duyệt trước đó tiếp tục là đầu vào R09 đến khi Manager duyệt số mới. PENDING_APPROVAL chưa có approvedWeeklyHours tạo gap. Giá trị đã duyệt bằng 0 được phân biệt với null.
 - Milestone rỗng hoặc toàn Task DONE tạo xử lý reminder ở adapter/UI khi cần. Engine không kích hoạt R11/R12 cho trường hợp này.
 - Kết quả là dữ liệu tính rule nội bộ. Adapter WP-037 thêm snapshot ID/inputFingerprint/triggerSource, lưu snapshot và gắn current/stale. Evidence R09 có ID người và workload qua Team, cần áp ACL/redaction của caller trước API/alert/AI.
 

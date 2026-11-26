@@ -406,10 +406,12 @@ export function evaluateRisk(input: RiskEngineInput): RiskEngineResult[] {
       const reasons: RiskGap['reasonCode'][] = [];
       if (!capacity || capacity.status === 'NOT_DECLARED')
         reasons.push('CAPACITY_NOT_DECLARED');
-      else if (capacity.status !== 'APPROVED')
-        reasons.push('CAPACITY_NOT_APPROVED');
       else if (capacity.approvedWeeklyHours === null)
-        reasons.push('CAPACITY_NOT_DECLARED');
+        reasons.push(
+          capacity.status === 'PENDING_APPROVAL'
+            ? 'CAPACITY_NOT_APPROVED'
+            : 'CAPACITY_NOT_DECLARED',
+        );
       else if (capacity.approvedWeeklyHours === 0)
         reasons.push('CAPACITY_ZERO');
       if (cumulative.some((a) => a.remainingEffortHours === null))
