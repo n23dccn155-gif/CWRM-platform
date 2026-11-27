@@ -1,6 +1,6 @@
 # CWRM-11 — ERD sơ bộ và từ điển dữ liệu
 
-**Trạng thái:** bản thiết kế 0.3.3-draft cập nhật ngày 17/11/2026, không đổi bảng hay cột so với 0.3.2-draft; 0.3.2-draft cập nhật cùng ngày theo quyết định PM-03; 0.3.1-draft cập nhật cùng ngày theo review CWRM-18; nền thiết kế 0.3.0-draft lập ngày 14/11/2026 và đồng bộ theo Clarification FINAL-01..08 được PM duyệt ngày 15/11/2026. Nguồn nghiệp vụ là Scope v0.2 Final (14/11/2026) kèm Clarification FINAL-01..08 (PM duyệt 15/11/2026). Đây là kiểu PostgreSQL dự kiến; Prisma schema/migration sẽ cụ thể hóa trong CWRM-12.
+**Trạng thái:** 0.3.4-draft là Review Candidate lập ngày 24/11/2026 cho WP-014B/WP-015A, chờ PM duyệt; thêm cột `team_memberships.version` và `workspace_memberships.skills_version`, không thêm hay bỏ bảng. Baseline đang áp dụng vẫn là 0.3.3-draft cho tới khi PM duyệt. Bản thiết kế 0.3.3-draft cập nhật ngày 17/11/2026, không đổi bảng hay cột so với 0.3.2-draft; 0.3.2-draft cập nhật cùng ngày theo quyết định PM-03; 0.3.1-draft cập nhật cùng ngày theo review CWRM-18; nền thiết kế 0.3.0-draft lập ngày 14/11/2026 và đồng bộ theo Clarification FINAL-01..08 được PM duyệt ngày 15/11/2026. Nguồn nghiệp vụ là Scope v0.2 Final (14/11/2026) kèm Clarification FINAL-01..08 (PM duyệt 15/11/2026). Đây là kiểu PostgreSQL dự kiến; Prisma schema/migration sẽ cụ thể hóa trong CWRM-12.
 
 ## 1. Quy ước
 
@@ -33,6 +33,7 @@ erDiagram
         UUID user_id FK
         VARCHAR role
         VARCHAR status
+        INTEGER skills_version
     }
     workspace_invitations {
         UUID id PK
@@ -52,6 +53,7 @@ erDiagram
         UUID user_id FK
         UUID main_role_id FK
         VARCHAR status
+        INTEGER version
     }
     roles {
         UUID id PK
@@ -266,10 +268,10 @@ Mọi bảng có `id UUID PK`. Bảng nghiệp vụ có `created_at TIMESTAMPTZ 
 |---|---|---|
 | accounts | email VARCHAR(320) NN UQ; password_hash VARCHAR(255) NN; display_name VARCHAR(120) NN; is_active BOOLEAN NN; created_at, updated_at TIMESTAMPTZ NN | Email chuẩn hóa chữ thường; không lưu password rõ. |
 | workspaces | name VARCHAR(160) NN; created_by_user_id UUID NN FK→accounts.id; created_at, updated_at | Người tạo thành Manager trong cùng transaction. |
-| workspace_memberships | workspace_id UUID NN FK; user_id UUID NN FK; role VARCHAR(16) NN; status VARCHAR(16) NN; created_at, updated_at | UQ workspace_id,user_id; role MANAGER/MEMBER; status ACTIVE/INACTIVE. |
+| workspace_memberships | workspace_id UUID NN FK; user_id UUID NN FK; role VARCHAR(16) NN; status VARCHAR(16) NN; skills_version INTEGER NN DEFAULT 1; created_at, updated_at | UQ workspace_id,user_id; role MANAGER/MEMBER; status ACTIVE/INACTIVE. `skills_version` là version của cả tập `member_skills` của người này trong workspace (API `skillsVersion`); bắt đầu 1 kể cả khi chưa có skill, chỉ tăng khi `PUT my-skills` đổi tập thật, cùng transaction với việc ghi `member_skills`. |
 | workspace_invitations | workspace_id UUID NN FK; invited_user_id UUID NN FK; invited_by_user_id UUID NN FK; status VARCHAR(16) NN; responded_at TIMESTAMPTZ ?; created_at TIMESTAMPTZ NN | Chỉ mời tài khoản đã đăng ký; PENDING/ACCEPTED/DECLINED. |
 | teams | workspace_id UUID NN FK; name VARCHAR(160) NN; created_at, updated_at | UQ workspace_id, normalized name. |
-| team_memberships | team_id UUID NN FK; user_id UUID NN FK; main_role_id UUID ? FK→roles.id; status VARCHAR(16) NN; created_at, updated_at | UQ team_id,user_id; ACTIVE/INACTIVE. Main Role nullable, thuộc cùng workspace; teamMembership API trả `mainRoleId`, `mainRoleName`. |
+| team_memberships | team_id UUID NN FK; user_id UUID NN FK; main_role_id UUID ? FK→roles.id; status VARCHAR(16) NN; version INTEGER NN DEFAULT 1; created_at, updated_at | UQ team_id,user_id; ACTIVE/INACTIVE. Main Role nullable, thuộc cùng workspace; teamMembership API trả `mainRoleId`, `mainRoleName`, `version`. `PATCH /teams/{teamId}/members/{userId}` so `expectedVersion` với `version`. |
 | roles | workspace_id UUID NN FK; name VARCHAR(100) NN; description TEXT ?; created_at, updated_at | UQ workspace_id, normalized name; nhãn chuyên môn, không phải quyền. |
 | skills | workspace_id UUID NN FK; name VARCHAR(100) NN; description TEXT ?; created_at, updated_at | UQ workspace_id, normalized name. |
 | member_skills | workspace_id UUID NN FK; user_id UUID NN FK; skill_id UUID NN FK; created_at TIMESTAMPTZ NN | UQ workspace_id,user_id,skill_id; tập skill do chính Member khai qua `PUT /workspaces/{workspaceId}/my-skills`. |
@@ -357,7 +359,7 @@ Tổng số bảng: **9 + 16 + 8 = 33**. `AIMessage.status`, `errorCode`, `evide
 
 ### Quy ước mã lỗi liên quan
 
-Các mã dùng trong contract 0.3.3-draft gồm: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VERSION_CONFLICT`, `CAPACITY_EXCEEDED`, `UNIQUE_CONFLICT`, `INVALID_STATE_TRANSITION`, `OPEN_WORK_TEMPORARILY_FULL`, `OPEN_WORK_CLOSED`, `PREDECESSOR_NOT_DONE`, `OPEN_BLOCKERS_EXIST`, `NO_ACCEPTED_RESPONSIBLE`, `DEPENDENCY_CYCLE`, `CROSS_WORKSPACE_DEPENDENCY`, `MILESTONE_TEAM_MISMATCH`, `ACCOUNTABLE_NOT_MANAGER`, `LAST_MANAGER_REQUIRED`, `RESPONSIBILITY_REQUIRED`, `INVITEE_NOT_REGISTERED`, `ASSIGNMENT_CHANGE_NOT_ALLOWED_IN_REVIEW`, `PROGRESS_NOT_COMPLETE`, `RESPONSIBLE_CONFIRMATION_MISSING`, `EFFORT_ALLOCATION_EXCEEDED`, `WORK_UPDATE_DUPLICATE`, `RISK_INPUT_INVALID`, `RISK_EVALUATION_FAILED`, `AI_CONTEXT_UNAVAILABLE`, `AI_CONTEXT_CHANGED`, `AI_TURN_IN_PROGRESS`, `AI_PROVIDER_ERROR`, `AI_OUTPUT_INVALID`, `AI_TIMEOUT`, `AI_QUOTA_EXCEEDED`, `SERVICE_UNAVAILABLE`, `INTERNAL_ERROR`. Danh sách đầy đủ và status nằm tại `openapi.yaml`.
+Review Candidate 0.3.4-draft đề xuất thêm `FILTER_NOT_AVAILABLE` (422, đề xuất P-02, chỉ ở API, không có bảng). Các mã dùng trong contract 0.3.3-draft gồm: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VERSION_CONFLICT`, `CAPACITY_EXCEEDED`, `UNIQUE_CONFLICT`, `INVALID_STATE_TRANSITION`, `OPEN_WORK_TEMPORARILY_FULL`, `OPEN_WORK_CLOSED`, `PREDECESSOR_NOT_DONE`, `OPEN_BLOCKERS_EXIST`, `NO_ACCEPTED_RESPONSIBLE`, `DEPENDENCY_CYCLE`, `CROSS_WORKSPACE_DEPENDENCY`, `MILESTONE_TEAM_MISMATCH`, `ACCOUNTABLE_NOT_MANAGER`, `LAST_MANAGER_REQUIRED`, `RESPONSIBILITY_REQUIRED`, `INVITEE_NOT_REGISTERED`, `ASSIGNMENT_CHANGE_NOT_ALLOWED_IN_REVIEW`, `PROGRESS_NOT_COMPLETE`, `RESPONSIBLE_CONFIRMATION_MISSING`, `EFFORT_ALLOCATION_EXCEEDED`, `WORK_UPDATE_DUPLICATE`, `RISK_INPUT_INVALID`, `RISK_EVALUATION_FAILED`, `AI_CONTEXT_UNAVAILABLE`, `AI_CONTEXT_CHANGED`, `AI_TURN_IN_PROGRESS`, `AI_PROVIDER_ERROR`, `AI_OUTPUT_INVALID`, `AI_TIMEOUT`, `AI_QUOTA_EXCEEDED`, `SERVICE_UNAVAILABLE`, `INTERNAL_ERROR`. Danh sách đầy đủ và status nằm tại `openapi.yaml`.
 
 ## 7. Chỉ mục tra cứu dự kiến
 

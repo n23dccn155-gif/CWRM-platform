@@ -314,3 +314,129 @@ Bảo (PM/BA) review 0.3.3-draft ở Jira CWRM-18 comment 10127: đạt về n�
 | Câu về Scope v0.1/D1–D6 ở mục "Điểm contract khác bản nháp hiện có" dễ gây hiểu lầm | Giữ nguyên câu lịch sử, thêm ghi chú ngay dưới: baseline hiện hành là Scope v0.2 Final + FINAL-01..08; Scope v0.1 chỉ để đối chiếu. |
 | Architecture mục 10 thiếu AC14 | Thêm dòng AC14 và ghi rõ AC14 là tiêu chí nghiệm thu tổng thể DEL01–DEL06, không thuộc phần CWRM-18 phải triển khai hay chứng minh chạy thật. |
 | Minh chứng `redocly lint` và render Mermaid | Chạy lại trên commit hoàn thiện; log lint và ảnh render 7 sơ đồ đính kèm Jira CWRM-18 cùng commit. |
+
+## Review Candidate 0.3.4-draft (24/11/2026)
+
+**Trạng thái:** Review Candidate. Ngày 26/11/2026 PM duyệt **thiết kế** P-01, P-02 và P-03 (22 quy tắc, CWRM-33 #10203), nhưng **chưa phát hành** contract. Baseline đang áp dụng vẫn là `0.3.3-draft` trên `main`. Nhánh `feature/CWRM-33-contract-0.3.4-draft` chỉ sửa `openapi.yaml`, `CWRM-11_ERD.md` và file này. PR để ở dạng Draft và chỉ merge sau khi PM duyệt. Không đổi Scope v0.2 Final, FINAL-01..08 hay WBS Final v1.0.
+
+**Nguồn:** CWRM-33 mục "Authorized pre-sprint preparation"; PM decision EST-03 (CWRM-32 #10174); Khôi xác nhận nội dung ở CWRM-33 #10181. Ba điểm L1–L3 là chỗ contract lệch ERD, phát hiện khi lập plan WP-014B ngày 23/11.
+
+Candidate gồm ba đề xuất:
+
+- **P-01 (L1–L3 và ngữ nghĩa `PUT my-skills`)** cần cho WP-014B. PM duyệt thiết kế 26/11.
+- **P-02 (`422 FILTER_NOT_AVAILABLE` cho `GET /tasks`)** cần cho WP-015A. PM duyệt thiết kế 26/11.
+- **P-03 (cùng quy tắc cho `GET /dashboard/manager`)** do PM thêm khi trả lời câu hỏi dashboard ở #10203. Chỉ là đặc tả contract, không mở rộng phạm vi triển khai của CWRM-33/34 hay Sprint 3.
+
+### P-01 — Đồng bộ contract với ERD cho Member, Team và Skill
+
+| ID | Lệch ở 0.3.3-draft | Thay đổi ở 0.3.4-draft | File |
+|---|---|---|---|
+| L1 | `WorkspaceMembership.roleIds` vẫn còn, trong khi ERD đã bỏ `member_roles` và chuyển Main Role sang Team. | Bỏ `roleIds`. Main Role đọc qua `TeamMembership.mainRoleId` theo từng team. Mô tả `listWorkspaceMembers`/`getWorkspaceMembership` đổi "nhãn role/skill" thành "tập skill". | openapi |
+| L2 | `TeamMembership.version` và `TeamMemberMainRolePatchRequest.expectedVersion` đã có, nhưng bảng `team_memberships` không có cột version. | Thêm `team_memberships.version INTEGER NN DEFAULT 1` vào ERD. API không đổi. | ERD |
+| L3 | `MySkillsRequest.expectedVersion` đã có, nhưng `member_skills` là tập dòng, không có chỗ lưu version, và client cũng không đọc được version hiện tại. | Thêm `workspace_memberships.skills_version INTEGER NN DEFAULT 1`. API trả `WorkspaceMembership.skillsVersion`. | ERD, openapi |
+| L3a | `PUT my-skills` trả `LabelSet { labelIds }`, không có version. Response chưa khai 409. | Response đổi sang schema mới `MySkillSet { skillIds, version }`. Thêm response 409. Xóa schema `LabelSet` vì không còn operation nào dùng. | openapi |
+| L3b | `WorkspaceMembership.skillIds` và `skillsVersion` chỉ nằm trong `properties`, nên response thiếu hai trường này vẫn hợp lệ, và UI không chắc có `expectedVersion` để gọi `PUT my-skills`. Ban nêu ở CWRM-33 #10186, Hiệp nêu lại ở #10193. | Đưa `skillIds` và `skillsVersion` vào `required` của `WorkspaceMembership`. Member chưa khai skill thì trả `skillIds: []` kèm version hiện tại. Áp dụng cho cả 4 response dùng schema này: `listWorkspaceMembers` (qua `MembershipPage`), `getWorkspaceMembership`, `updateWorkspaceMembership` và `acceptWorkspaceInvitation`. Cả 4 đều thuộc WP-014B, chưa có mã nên không vỡ backend. | openapi |
+
+Ngữ nghĩa `PUT /workspaces/{workspaceId}/my-skills` ghi trong mô tả operation:
+
+1. Version thuộc cả tập skill và bắt đầu từ 1, kể cả khi Member chưa khai skill nào.
+2. `skillIds: []` là hợp lệ và xóa hết skill.
+3. `expectedVersion` khác version hiện tại thì trả 409 `VERSION_CONFLICT`, tập skill giữ nguyên.
+4. Gửi đúng tập đang có là no-op: trả 200 với version hiện tại, không tăng version.
+5. Mỗi lần tập thay đổi thật, version tăng đúng 1 trong cùng transaction với việc ghi `member_skills`. Response luôn trả version hiện tại sau request.
+
+Điểm 4 là lựa chọn của Khôi: no-op không tăng version, theo cùng cách R13 không coi no-op là hoạt động. Phương án còn lại là tăng version ở mọi lần PUT thành công. Ban đồng ý ở CWRM-33 #10186, với điều kiện kiểm `expectedVersion` trước khi xét no-op: gửi lại đúng tập đang có nhưng version cũ vẫn trả 409.
+
+### P-02 — `GET /tasks` với bộ lọc chưa hỗ trợ (EST-03)
+
+| Thay đổi | Chi tiết |
+|---|---|
+| Mã lỗi mới | `FILTER_NOT_AVAILABLE` (422), thêm vào bảng mã ở `info.description` và enum `ErrorResponse.error.code`. |
+| Response mới | `components.responses.FilterNotAvailable`, ví dụ `details: { unsupportedFilters: [openWorkState, riskLevel] }`. Từ commit P-03, response này dùng schema `FilterNotAvailableError` (xem P-03). |
+| `listTasks` | Mô tả ghi quy tắc EST-03 và khai thêm response 400, 404 và 422. Bộ lọc nằm trong phạm vi: `riskLevel` (chờ risk snapshot), `responsibleUserId` (chờ assignment ACCEPTED còn hiệu lực), `openWorkState` (chờ trạng thái Open Work). |
+
+Quy tắc:
+
+1. Query có bất kỳ bộ lọc nào ở trên mà module nguồn chưa có thì trả 422, kể cả khi đi cùng bộ lọc đã hỗ trợ.
+2. `details.unsupportedFilters` liệt kê đúng các bộ lọc đó, sắp theo tên để test so khớp ổn định.
+3. Server không bỏ qua bộ lọc, không trả 200 với `items` rỗng để che việc chưa hỗ trợ và không gán giá trị mặc định.
+4. Kiểm quyền workspace chạy trước: người không có membership ACTIVE vẫn nhận 404.
+5. Query chỉ gồm bộ lọc đã hỗ trợ mà không khớp task nào thì trả 200 với `items` rỗng.
+6. Khi module nguồn sẵn sàng, bộ lọc tương ứng chạy trên dữ liệu thật và không còn trả mã này. Lúc đó cần một bản contract mới ghi nhận.
+
+**Ngoài phạm vi P-02:** `GET /dashboard/manager` có cùng ba bộ lọc. EST-03 chỉ nói `GET /tasks`, nên bản đầu của candidate không sửa operation này và hỏi PM. PM quyết ở #10203, xem P-03.
+
+### P-03 — `GET /dashboard/manager` với bộ lọc chưa hỗ trợ (CWRM-33 #10203, 26/11/2026)
+
+| Thay đổi | Chi tiết | Quy tắc PM |
+|---|---|---|
+| Mô tả `getManagerDashboard` | Có `riskLevel`, `responsibleUserId` hoặc `openWorkState` mà module nguồn chưa có thì cả request trả 422 `FILTER_NOT_AVAILABLE`, kể cả khi đi cùng bộ lọc đã hỗ trợ. Không trả số đếm 0, risk LOW hay danh sách rỗng để che. Bộ lọc đã hỗ trợ chạy trên dữ liệu thật, ngữ nghĩa các chỉ số giữ nguyên. Ghi rõ dashboard triển khai ở WP riêng, không thuộc WP-015A. | P03.1, P03.4, P03.5, P03.7 |
+| Response 422 | Khai `'422': FilterNotAvailable`, dùng chung response và `details.unsupportedFilters` với `listTasks`. | P03.2 |
+| Response 400 | Khai thêm `'400': BadRequest`. Baseline chưa khai 400 cho operation này, trong khi P02.5/P03.3 yêu cầu validation chạy trước 422; giá trị enum sai trong query vẫn phải ra 400 chứ không phải 422. | P03.3 |
+| Quyền | Giữ `x-permission: WORKSPACE_MANAGER` và 401/403 như baseline. Không thêm 404, vì đổi cách trả lỗi quyền nằm ngoài P-03. | P03.3 |
+| Schema lỗi mới `FilterNotAvailableError` | `allOf` của `ErrorResponse` (phong bì giữ nguyên), siết thêm: `code` chỉ là `FILTER_NOT_AVAILABLE`; `details` bắt buộc có `unsupportedFilters` và không có trường khác; `unsupportedFilters` có ít nhất 1 phần tử, không trùng, mỗi phần tử thuộc `[openWorkState, responsibleUserId, riskLevel]`. Thứ tự sắp theo tên không diễn đạt được bằng JSON Schema nên vẫn là quy tắc của operation và là một ca QA. | Yêu cầu hoàn thiện 2 của #10203 |
+
+Khi một module nguồn sẵn sàng, tên bộ lọc tương ứng phải được gỡ khỏi enum của `unsupportedFilters` trong cùng bản contract ghi nhận việc đó (P02.8).
+
+### Ảnh hưởng
+
+- **Frontend:** `frontend/src` trên `main 7f8ebb7` chưa dùng `roleIds`, `labelIds`, `my-skills`, và chưa gửi ba bộ lọc trên lên `GET /tasks`, nên không có chỗ nào vỡ. WP-016B (màn My Skills) đọc `skillsVersion` từ `GET /workspaces/{workspaceId}/members/{userId}` và gửi lại làm `expectedVersion`. WP-017A hiển thị 422 thành thông báo "bộ lọc chưa hỗ trợ", không hiển thị thành "0 công việc".
+- **Backend:** `src/common/errors/error-codes.ts` chỉ thêm `FILTER_NOT_AVAILABLE` trong WP-015A, sau khi P-02 được duyệt. Hai cột mới đi vào migration của WP-014B.
+- **Architecture:** không đổi luồng hay module nên `CWRM-11_Architecture.md` giữ nguyên trong candidate này. Dòng Trạng thái của file đó sẽ cập nhật khi PM duyệt.
+
+### Câu hỏi review
+
+| Người review | Câu hỏi |
+|---|---|
+| Đặng Văn Hiệp | Response `MySkillSet`, trường `skillsVersion` trên membership và cách UI xử lý 409 khi PUT my-skills có đủ cho WP-016B không? Thông báo 422 `FILTER_NOT_AVAILABLE` dựa trên `details.unsupportedFilters` có đủ cho WP-017A không? |
+| Lê Quốc Ban | Năm điểm ngữ nghĩa my-skills, nhất là no-op không tăng version, và sáu quy tắc P-02 có đủ để viết expected cho WP-020B không? |
+| Lê Đình Bảo (PM) | Duyệt P-01 và P-02, riêng hoặc cùng lúc, và quyết điểm `GET /dashboard/manager`. Đã trả lời ở #10203 (26/11). |
+
+### Phản hồi review (24–25/11/2026)
+
+| Người review | Nội dung | Xử lý trong candidate |
+|---|---|---|
+| Lê Quốc Ban (CWRM-33 #10186, 24/11) | P-01: `skillIds` và `skillsVersion` phải vào `required` của `WorkspaceMembership`. Đồng ý no-op không tăng version, nếu kiểm `expectedVersion` trước. P-02 đủ cơ sở viết expected. `GET /dashboard/manager` cần PM quyết riêng. Đây là review tài liệu, chưa xác nhận toàn PR đạt. | Sửa theo L3b. Ghi điều kiện no-op ở điểm 4. Điểm dashboard để PM quyết. |
+| Đặng Văn Hiệp (CWRM-33 #10193, 25/11) | Cùng ý `required` với Ban. UI dùng version từ response, cho gửi tập rỗng, gặp 409 thì báo dữ liệu đã đổi và tải lại; 422 `FILTER_NOT_AVAILABLE` hiển thị là bộ lọc chưa sẵn sàng, sau khi P-02 được duyệt. Hiệp xác nhận P-01 sau khi đối chiếu bản sửa. | Sửa theo L3b. Hiệp đã đối chiếu, xem dòng #10206. |
+| Lê Quốc Ban (CWRM-33 #10195, 26/11) | Đối chiếu `5a28da3`: điểm chặn ở #10186 đã xử lý, **P-01 đạt review tài liệu** phía QA. P-02 đủ cơ sở viết ca ACL, tổ hợp filter và 422. Dashboard chờ PM. | Không cần sửa. Nhờ Ban review P-02/P-03 trên commit P-03. |
+| Lê Đình Bảo (CWRM-33 #10203, 26/11) | Duyệt thiết kế 22 quy tắc P01.1–P01.7, P02.1–P02.8, P03.1–P03.7; chưa phát hành contract. Yêu cầu bổ sung P-03, kiểm schema của `unsupportedFilters`, chạy lại lint; không tự merge PR #10, không phát hành `0.3.4-draft`, không chuyển CWRM-33/34 sang Done. | Thêm mục P-03 và schema `FilterNotAvailableError`. Trình lại commit cuối để PM nghiệm thu contract. |
+| Đặng Văn Hiệp (CWRM-34 #10206, 26/11) | Đối chiếu `5a28da3`: L3b và ngữ nghĩa My Skills đủ cho WP-016B, **P-01 đạt review tài liệu** phía frontend. Chưa xác nhận toàn PR, chờ P-03 và schema lỗi 422. | Nhờ Hiệp review P-03 và schema 422 trên commit P-03. |
+
+### Hoàn thiện theo PM #10219 (27/11/2026)
+
+**Nguồn:** CWRM-33 #10219. PM duyệt hướng hoàn thiện C33-01.1–C33-03.3 (phương án B) và C33-04.1–04.10. Đây chưa phải nghiệm thu hay phát hành contract. Đầu vào: 10 điểm contract chưa quy định mà build PR #11 `0ac40e3` đã tự chọn (`backend/README.md`, CWRM-33 #10212), và 4 sai lệch CD-01–CD-04 Ban tìm thấy khi QA (CWRM-33 #10216, CWRM-39 #10217). Baseline vẫn là `0.3.3-draft` cho tới khi PM cho phát hành `0.3.4-draft` (C33-04.10).
+
+Commit này chỉ sửa `openapi.yaml` và file này. ERD không đổi: không quyết định nào thêm cột, bảng hay ràng buộc mới. Mọi kiểm tra miền và trạng thái đã có trong ERD hoặc thuộc tầng ứng dụng.
+
+#### Truy vết 10 quyết định
+
+| ID | Quyết định PM | Thay đổi contract | Build PR #11 |
+|---|---|---|---|
+| C33-01.1 | Tên Team/Role/Skill không trùng trong cùng workspace (không phân biệt hoa thường), workspace khác được trùng. Vi phạm trả 409 `UNIQUE_CONFLICT`. | Khai `409` cho `updateTeam`, `updateRole`, `updateSkill` (CD-03). Ghi quy tắc vào mô tả cả 3 operation tạo và 3 operation sửa, và vào dòng `UNIQUE_CONFLICT` của bảng mã lỗi. | Đã đúng ở `0ac40e3`. |
+| C33-01.2 | Accept/Decline chỉ với lời mời PENDING. Approve Capacity chỉ khi Member đã khai và đang PENDING_APPROVAL. Sai trạng thái trả 422 `INVALID_STATE_TRANSITION`, không ghi thay đổi. | Khai `422` cho `acceptWorkspaceInvitation`, `declineWorkspaceInvitation` (CD-01) và `approveMemberCapacity` (CD-02). Mô tả ghi rõ lần Accept/Decline thứ hai và trường hợp duyệt khi chưa khai hoặc đã APPROVED. `409` vẫn giữ theo C33-01.2 ("giữ 409 VERSION_CONFLICT và xung đột thực sự phù hợp"). Riêng accept/decline không có version nên build hiện chưa trả 409 ở hai operation này. | Đã đúng ở `0ac40e3`. |
+| C33-01.3 | Tham chiếu sai trong body trả 400 `VALIDATION_ERROR`, không bỏ qua ID, không ghi một phần. | Mô tả `addTeamMember` (`details.fields.userId`), `setTeamMemberMainRole` (`details.fields.mainRoleId`), `replaceMySkills` (`details.unknownSkillIds`). | Đã đúng ở `0ac40e3`. |
+| C33-01.4 | Chặn xóa Role/Skill còn tham chiếu: 409 `UNIQUE_CONFLICT`, `details.reason=IN_USE` kèm số tham chiếu. Không xóa dây chuyền, không thêm mã lỗi mới. | Mô tả `deleteRole`, `deleteSkill` và bảng mã lỗi. | Đã đúng ở `0ac40e3`. |
+| C33-02.1 | 401 khi chưa xác thực; 403 khi thấy tài nguyên nhưng thiếu quyền; 404 khi tài nguyên không tồn tại hoặc ngoài phạm vi được thấy. | Khai `404` cho `declareMyCapacity` (CD-04). Bảng `x-permission`: SELF trả 404 khi caller ngoài workspace hoặc khi lời mời là của người khác; TEAM_ACCESS không đạt trả 404; WORKSPACE_MANAGER trên tài nguyên của team mà Member không thuộc team trả 404. Sửa ý nghĩa 403/404 trong bảng mã lỗi. | **Sửa ở commit mới:** trước đây Member gọi thao tác Manager trên team mình không thuộc (ví dụ `PATCH /teams/{teamId}`) nhận 403, làm lộ team có tồn tại. Nay trả 404 như `GET`; Member của team đó vẫn nhận 403. |
+| C33-02.2 | Gỡ hoặc vô hiệu hóa membership thì team membership trong workspace đó chuyển INACTIVE trong cùng transaction với audit. Tham gia lại không tự khôi phục team. | Mô tả `updateWorkspaceMembership`, `removeWorkspaceMembership`, `acceptWorkspaceInvitation`, `addTeamMember`. | Cascade và việc không khôi phục team đã đúng ở `0ac40e3`. **Sửa ở commit mới:** thêm lại người cũ vào team trước đây khôi phục luôn `mainRoleId` cũ. Nay đặt `mainRoleId = null`, Manager đặt lại Main Role. |
+| C33-02.3 | Chặn gỡ, hạ quyền hoặc vô hiệu hóa Manager ACTIVE cuối (422 `LAST_MANAGER_REQUIRED`, kể cả request đồng thời). Chặn với Manager đang là A của task chưa DONE, và chặn gỡ khỏi team người đang là A của task chưa DONE trong team đó (422 `RESPONSIBILITY_REQUIRED`). Giữ guard R. | Mô tả `updateWorkspaceMembership`, `removeWorkspaceMembership`, `removeTeamMember`. Ghi rõ guard R áp dụng khi module assignment có dữ liệu. | Guard Manager cuối và guard A đã đúng ở `0ac40e3`. **Guard R chưa kiểm được:** schema chưa có bảng `assignments` (thuộc WP-024A/B, WP-026), nên hiện không có R nào có thể bị mất. Theo C33-02.3, phần này ghi là phụ thuộc và phải kiểm khi module sẵn sàng, không coi là PASS. |
+| C33-03.1 | `declaredWeeklyHours` và `approvedWeeklyHours` từ 0 đến 168, tối đa 2 chữ số thập phân. Sai miền trả 400, không làm tròn. Khai lại giữ số đã duyệt. Số đã duyệt bằng 0 hoặc chưa có thì R09 là NOT_EVALUATED. | `maximum: 168` và mô tả cho `CapacityDeclarationRequest`, `CapacityApprovalRequest`, `MemberCapacity`. Mô tả `declareMyCapacity`, `approveMemberCapacity`. Giới hạn 2 chữ số thập phân ghi bằng lời, không dùng `multipleOf: 0.01` vì số thực nhị phân làm validator báo sai với giá trị hợp lệ như `0.07`. | Đã đúng ở `0ac40e3`. |
+| C33-03.2 | Kiểm quyền, request, expectedVersion rồi mới xét no-op. Version cũ trả 409 kể cả khi payload giống hiện tại. No-op trả 200, giữ version, không ghi audit. | Mô tả `setTeamMemberMainRole` ghi thứ tự kiểm. | **Sửa ở commit mới:** trước đây kiểm `expectedVersion` trước khi kiểm `mainRoleId`, nên `mainRoleId` sai kèm version cũ trả 409. Nay trả 400. Quy tắc no-op giữ nguyên. |
+| C33-03.3 | `GET /workspace-invitations` chỉ trả lời mời của caller, đủ 3 trạng thái, mới nhất trước, thứ tự ổn định khi phân trang. Chỉ in-app, không email, không hạn dùng. | Mô tả `listMyWorkspaceInvitations`. | Đã đúng ở `0ac40e3` (`createdAt` giảm dần, cùng thời điểm thì theo `id`). |
+
+#### CD-01–CD-04
+
+| ID | Operation | Khai báo trước | Khai báo mới | Trạng thái |
+|---|---|---|---|---|
+| CD-01 | `acceptWorkspaceInvitation`, `declineWorkspaceInvitation` | 409, thiếu 422 | Thêm 422 | Chờ Ban retest |
+| CD-02 | `approveMemberCapacity` | thiếu 422 | Thêm 422 | Chờ Ban retest |
+| CD-03 | `updateTeam`, `updateRole`, `updateSkill` | thiếu 409 | Thêm 409 | Chờ Ban retest |
+| CD-04 | `declareMyCapacity` | thiếu 404 | Thêm 404 | Chờ Ban retest |
+
+Tổng cộng 7 khai báo status được thêm, khớp với 7 khai báo Ban đếm ở CWRM-33 #10221. Theo C33-04.5, CD-01–04 vẫn mở cho tới khi Ban xác nhận trên đúng SHA.
+
+### Minh chứng
+
+- `redocly lint` (recommended): hợp lệ, 3 cảnh báo, giống hệt baseline 0.3.3-draft (`info-license`, server `localhost`, `/health` không có response 4xx). Không có cảnh báo mới.
+- Render Mermaid (`@mermaid-js/mermaid-cli`): cả 3 sơ đồ của `CWRM-11_ERD.md` render được, kể cả sơ đồ mục 2 có thêm hai cột. Architecture không đổi nên không render lại.
+- Commit P-03 (26/11/2026): `redocly lint` 2.84.0 (recommended) hợp lệ, 3 cảnh báo, giống baseline. Ví dụ của `FilterNotAvailable` khớp schema mới. Kiểm phủ định bằng cách sửa tạm ví dụ: `unsupportedFilters: []`, tên ngoài danh sách (`teamId`), phần tử trùng, `code` khác và `details` có trường thừa đều bị rule `no-invalid-media-type-examples` bắt. ERD và Architecture không đổi trong commit này nên không render lại sơ đồ.
+- Commit hoàn thiện theo #10219 (27/11/2026): `redocly lint` 2.84.0 (recommended) hợp lệ, 3 cảnh báo, giống baseline. Script đọc `openapi.yaml` bằng `js-yaml` xác nhận đủ 7 khai báo của CD-01–04; cùng script trên `633ac0f` báo thiếu cả 7. Build đối chiếu: PR #11 `acc4b0f`, lint, typecheck, build đạt; unit 39/39, e2e 4/4, `test:int` 40/40 với PostgreSQL 17. ERD và Architecture không đổi nên không render lại sơ đồ.
