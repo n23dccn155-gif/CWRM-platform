@@ -96,3 +96,246 @@ describe('Bộ bảo vệ quyền workspace', () => {
     expect(prisma.workspaceMembership.findUnique).not.toHaveBeenCalled();
   });
 });
+
+describe('Bộ bảo vệ quyền theo tài nguyên (WP-014B)', () => {
+  const teamId = '33333333-3333-4333-8333-333333333333';
+
+  function contextFor(
+    requirement: { permission: string; scope: string },
+    params: Record<string, string>,
+  ) {
+    const request: Record<string, unknown> = { params, user: { id: userId } };
+    const reflector = new Reflector();
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(requirement);
+    const context = {
+      getHandler: () => () => undefined,
+      getClass: () => class TeamController {},
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as never;
+    return { request, reflector, context };
+  }
+
+  function prismaWith(options: {
+    team?: { workspaceId: string } | null;
+    task?: { teamId: string; team: { workspaceId: string } } | null;
+    membership?: { role: string; status: string } | null;
+    teamMembership?: { status: string } | null;
+  }) {
+    return {
+      team: { findUnique: vi.fn().mockResolvedValue(options.team ?? null) },
+      task: { findUnique: vi.fn().mockResolvedValue(options.task ?? null) },
+      role: { findUnique: vi.fn().mockResolvedValue(null) },
+      skill: { findUnique: vi.fn().mockResolvedValue(null) },
+      workspaceMembership: {
+        findUnique: vi.fn().mockResolvedValue(options.membership ?? null),
+      },
+      teamMembership: {
+        findUnique: vi.fn().mockResolvedValue(options.teamMembership ?? null),
+      },
+    };
+  }
+
+  it('tra workspace từ teamId và gắn workspaceAccess cho Manager', async () => {
+    const prisma = prismaWith({
+      team: { workspaceId },
+      membership: { role: 'MANAGER', status: 'ACTIVE' },
+    });
+    const { request, reflector, context } = contextFor(
+      { permission: 'TEAM_ACCESS', scope: 'team' },
+      { teamId },
+    );
+    const guard = new WorkspacePermissionGuard(
+      reflector,
+      prisma as unknown as PrismaService,
+    );
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request.workspaceAccess).toEqual({ workspaceId, role: 'MANAGER' });
+    expect(prisma.teamMembership.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('TEAM_ACCESS: Member ngoài team nhận 404 giống team không tồn tại', async () => {
+    const outside = prismaWith({
+      team: { workspaceId },
+      membership: { role: 'MEMBER', status: 'ACTIVE' },
+      teamMembership: { status: 'INACTIVE' },
+    });
+    const missing = prismaWith({ team: null });
+    for (const prisma of [outside, missing]) {
+      const { reflector, context } = contextFor(
+        { permission: 'TEAM_ACCESS', scope: 'team' },
+        { teamId },
+      );
+      const guard = new WorkspacePermissionGuard(
+        reflector,
+        prisma as unknown as PrismaService,
+      );
+      await expect(guard.canActivate(context)).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'Không tìm thấy team được yêu cầu.',
+      });
+    }
+  });
+
+  it('TEAM_ACCESS: Member ACTIVE của team được vào', async () => {
+    const prisma = prismaWith({
+      team: { workspaceId },
+      membership: { role: 'MEMBER', status: 'ACTIVE' },
+      teamMembership: { status: 'ACTIVE' },
+    });
+    const { reflector, context } = contextFor(
+      { permission: 'TEAM_ACCESS', scope: 'team' },
+      { teamId },
+    );
+    const guard = new WorkspacePermissionGuard(
+      reflector,
+      prisma as unknown as PrismaService,
+    );
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it('C33-02.1: thao tác Manager trên team — Member ngoài team nhận 404, Member trong team nhận 403', async () => {
+    for (const [teamMembership, code] of [
+      [null, 'NOT_FOUND'],
+      [{ status: 'INACTIVE' }, 'NOT_FOUND'],
+      [{ status: 'ACTIVE' }, 'FORBIDDEN'],
+    ] as const) {
+      const prisma = prismaWith({
+        team: { workspaceId },
+        membership: { role: 'MEMBER', status: 'ACTIVE' },
+        teamMembership,
+      });
+      const { reflector, context } = contextFor(
+        { permission: 'WORKSPACE_MANAGER', scope: 'team' },
+        { teamId },
+      );
+      const guard = new WorkspacePermissionGuard(
+        reflector,
+        prisma as unknown as PrismaService,
+      );
+      await expect(guard.canActivate(context)).rejects.toMatchObject({
+        code,
+      });
+    }
+  });
+
+  it('TASK_ACCESS (WP-015A): tra workspace và team từ taskId; Member ngoài team nhận 404', async () => {
+    const taskId = '55555555-5555-4555-8555-555555555555';
+    const task = { teamId, team: { workspaceId } };
+    for (const [membership, teamMembership, expected] of [
+      [{ role: 'MANAGER', status: 'ACTIVE' }, null, true],
+      [{ role: 'MEMBER', status: 'ACTIVE' }, { status: 'ACTIVE' }, true],
+      [
+        { role: 'MEMBER', status: 'ACTIVE' },
+        { status: 'INACTIVE' },
+        'NOT_FOUND',
+      ],
+      [
+        { role: 'MEMBER', status: 'INACTIVE' },
+        { status: 'ACTIVE' },
+        'NOT_FOUND',
+      ],
+    ] as const) {
+      const prisma = prismaWith({ task, membership, teamMembership });
+      const { request, reflector, context } = contextFor(
+        { permission: 'TASK_ACCESS', scope: 'task' },
+        { taskId },
+      );
+      const guard = new WorkspacePermissionGuard(
+        reflector,
+        prisma as unknown as PrismaService,
+      );
+      if (expected === true) {
+        await expect(guard.canActivate(context)).resolves.toBe(true);
+        expect(request.workspaceAccess).toEqual({
+          workspaceId,
+          role: membership.role,
+        });
+      } else {
+        await expect(guard.canActivate(context)).rejects.toMatchObject({
+          code: expected,
+          message: 'Không tìm thấy task được yêu cầu.',
+        });
+      }
+    }
+  });
+
+  it('workspaceQuery (GET /tasks): đọc workspaceId từ query, sai định dạng trả 400', async () => {
+    const prisma = prismaWith({
+      membership: { role: 'MEMBER', status: 'ACTIVE' },
+    });
+    const reflector = new Reflector();
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue({
+      permission: 'WORKSPACE_MEMBER',
+      scope: 'workspaceQuery',
+    });
+    const guard = new WorkspacePermissionGuard(
+      reflector,
+      prisma as unknown as PrismaService,
+    );
+    const contextWith = (query: Record<string, string>) =>
+      ({
+        getHandler: () => () => undefined,
+        getClass: () => class TaskController {},
+        switchToHttp: () => ({
+          getRequest: () => ({ params: {}, query, user: { id: userId } }),
+        }),
+      }) as never;
+    await expect(guard.canActivate(contextWith({ workspaceId }))).resolves.toBe(
+      true,
+    );
+    await expect(guard.canActivate(contextWith({}))).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      details: { fields: { workspaceId: expect.any(Array) } },
+    });
+  });
+
+  it('SELF_OR_MANAGER: Member xem chính mình được, xem người khác nhận 403', async () => {
+    const otherId = '44444444-4444-4444-8444-444444444444';
+    for (const [target, expected] of [
+      [userId, true],
+      [otherId, 'FORBIDDEN'],
+    ] as const) {
+      const prisma = prismaWith({
+        membership: { role: 'MEMBER', status: 'ACTIVE' },
+      });
+      const { reflector, context } = contextFor(
+        { permission: 'SELF_OR_MANAGER', scope: 'workspace' },
+        { workspaceId, userId: target },
+      );
+      const guard = new WorkspacePermissionGuard(
+        reflector,
+        prisma as unknown as PrismaService,
+      );
+      if (expected === true) {
+        await expect(guard.canActivate(context)).resolves.toBe(true);
+      } else {
+        await expect(guard.canActivate(context)).rejects.toMatchObject({
+          code: expected,
+        });
+      }
+    }
+  });
+
+  it('trả 400 có tên trường khi teamId hoặc userId sai định dạng', async () => {
+    const prisma = prismaWith({});
+    for (const [requirement, params, field] of [
+      [{ permission: 'TEAM_ACCESS', scope: 'team' }, { teamId: 'x' }, 'teamId'],
+      [
+        { permission: 'SELF_OR_MANAGER', scope: 'workspace' },
+        { workspaceId, userId: 'x' },
+        'userId',
+      ],
+    ] as const) {
+      const { reflector, context } = contextFor(requirement, params);
+      const guard = new WorkspacePermissionGuard(
+        reflector,
+        prisma as unknown as PrismaService,
+      );
+      await expect(guard.canActivate(context)).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR',
+        details: { fields: { [field]: expect.any(Array) } },
+      });
+    }
+    expect(prisma.workspaceMembership.findUnique).not.toHaveBeenCalled();
+  });
+});
