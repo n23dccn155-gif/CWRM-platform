@@ -29,6 +29,20 @@ enum InvitationStatus {
   @@map("invitation_status")
 }
 
+enum CapacityStatus {
+  PENDING_APPROVAL
+  APPROVED
+
+  @@map("capacity_status")
+}
+
+enum AuditActorKind {
+  USER
+  SYSTEM
+
+  @@map("audit_actor_kind")
+}
+
 enum TaskStatus {
   TO_DO
   IN_PROGRESS
@@ -75,8 +89,10 @@ model Account {
   invitationsReceived  WorkspaceInvitation[] @relation("InvitationRecipient")
   invitationsSent      WorkspaceInvitation[] @relation("InvitationSender")
   teamMemberships      TeamMembership[]
-  memberRoles          MemberRole[]
   memberSkills         MemberSkill[]
+  capacities           MemberCapacity[]      @relation("CapacityOwner")
+  approvedCapacities   MemberCapacity[]      @relation("CapacityApprover")
+  auditLogs            AuditLog[]
 
   @@map("accounts")
 }
@@ -93,24 +109,27 @@ model Workspace {
   teams           Team[]
   roles           Role[]
   skills          Skill[]
-  memberRoles     MemberRole[]
   memberSkills    MemberSkill[]
+  capacities      MemberCapacity[]
 
   @@map("workspaces")
 }
 
 model WorkspaceMembership {
-  id          String           @id @default(uuid()) @db.Uuid
-  workspaceId String           @map("workspace_id") @db.Uuid
-  userId      String           @map("user_id") @db.Uuid
-  role        WorkspaceRole
-  status      MembershipStatus
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
-  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  user        Account          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id            String           @id @default(uuid()) @db.Uuid
+  workspaceId   String           @map("workspace_id") @db.Uuid
+  userId        String           @map("user_id") @db.Uuid
+  role          WorkspaceRole
+  status        MembershipStatus
+  /// Version của cả tập member_skills của người này trong workspace (API skillsVersion).
+  skillsVersion Int              @default(1) @map("skills_version")
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user          Account          @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([workspaceId, userId])
+  @@index([userId, workspaceId, status])
   @@map("workspace_memberships")
 }
 
@@ -149,14 +168,20 @@ model TeamMembership {
   id               String           @id @default(uuid()) @db.Uuid
   teamId           String           @map("team_id") @db.Uuid
   userId           String           @map("user_id") @db.Uuid
+  /// Main Role theo team; role phải cùng workspace với team (kiểm ở service).
+  mainRoleId       String?          @map("main_role_id") @db.Uuid
   status           MembershipStatus
+  version          Int              @default(1)
   createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   team             Team             @relation(fields: [teamId], references: [id], onDelete: Restrict)
   user             Account          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  mainRole         Role?            @relation(fields: [mainRoleId], references: [id], onDelete: Restrict)
   accountableTasks Task[]
 
   @@unique([teamId, userId])
+  @@index([teamId, mainRoleId])
+  @@index([userId, teamId, status])
   @@map("team_memberships")
 }
 
@@ -168,7 +193,7 @@ model Role {
   createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
   workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  memberRoles      MemberRole[]
+  teamMemberships  TeamMembership[]
   taskRequirements TaskRoleRequirement[]
 
   @@unique([workspaceId, name])
@@ -188,20 +213,6 @@ model Skill {
 
   @@unique([workspaceId, name])
   @@map("skills")
-}
-
-model MemberRole {
-  id          String    @id @default(uuid()) @db.Uuid
-  workspaceId String    @map("workspace_id") @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
-  roleId      String    @map("role_id") @db.Uuid
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  user        Account   @relation(fields: [userId], references: [id], onDelete: Restrict)
-  role        Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
-
-  @@unique([workspaceId, userId, roleId])
-  @@map("member_roles")
 }
 
 model MemberSkill {
@@ -292,4 +303,46 @@ model TaskSkillRequirement {
 
   @@unique([taskId, skillId])
   @@map("task_skill_requirements")
+}
+
+model MemberCapacity {
+  id                  String         @id @default(uuid()) @db.Uuid
+  workspaceId         String         @map("workspace_id") @db.Uuid
+  userId              String         @map("user_id") @db.Uuid
+  declaredWeeklyHours Decimal        @map("declared_weekly_hours") @db.Decimal(8, 2)
+  declaredAt          DateTime       @map("declared_at") @db.Timestamptz(3)
+  /// Giá trị đã duyệt gần nhất; giữ nguyên khi Member khai lại cho tới khi Manager duyệt số mới.
+  approvedWeeklyHours Decimal?       @map("approved_weekly_hours") @db.Decimal(8, 2)
+  approvedByUserId    String?        @map("approved_by_user_id") @db.Uuid
+  approvedAt          DateTime?      @map("approved_at") @db.Timestamptz(3)
+  status              CapacityStatus
+  version             Int            @default(1)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user                Account        @relation("CapacityOwner", fields: [userId], references: [id], onDelete: Restrict)
+  approvedBy          Account?       @relation("CapacityApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId, status, userId])
+  @@map("member_capacities")
+}
+
+/// Append-only; trigger trong migration chặn UPDATE/DELETE.
+model AuditLog {
+  id          String         @id @default(uuid()) @db.Uuid
+  actorUserId String?        @map("actor_user_id") @db.Uuid
+  actorKind   AuditActorKind @map("actor_kind")
+  objectType  String         @map("object_type") @db.VarChar(40)
+  objectId    String         @map("object_id") @db.Uuid
+  action      String         @db.VarChar(80)
+  beforeValue Json?          @map("before_value")
+  afterValue  Json?          @map("after_value")
+  reason      String?        @db.Text
+  createdAt   DateTime       @map("created_at") @db.Timestamptz(3)
+  actor       Account?       @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([objectType, objectId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@map("audit_logs")
 }

@@ -23,8 +23,8 @@ const ids = {
   managerTeamMembership: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
   contentTeamMembership: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
   designerTeamMembership: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3',
-  contentMemberRole: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
-  designerMemberRole: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2',
+  contentCapacity: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+  designerCapacity: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2',
   contentMemberSkill: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
   designerMemberSkill: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2',
   posterRoleRequirement: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
@@ -154,28 +154,6 @@ async function seed(): Promise<void> {
       });
     }
 
-    await prisma.team.upsert({
-      where: { id: ids.team },
-      create: { id: ids.team, workspaceId: ids.workspace, name: 'Marketing' },
-      update: { workspaceId: ids.workspace, name: 'Marketing' },
-    });
-    for (const member of [
-      { id: ids.managerTeamMembership, userId: manager.id },
-      { id: ids.contentTeamMembership, userId: content.id },
-      { id: ids.designerTeamMembership, userId: designer.id },
-    ]) {
-      await prisma.teamMembership.upsert({
-        where: { teamId_userId: { teamId: ids.team, userId: member.userId } },
-        create: {
-          id: member.id,
-          teamId: ids.team,
-          userId: member.userId,
-          status: 'ACTIVE',
-        },
-        update: { status: 'ACTIVE' },
-      });
-    }
-
     await prisma.role.upsert({
       where: { id: ids.contentRole },
       create: {
@@ -194,6 +172,38 @@ async function seed(): Promise<void> {
       },
       update: { workspaceId: ids.workspace, name: 'Designer' },
     });
+    await prisma.team.upsert({
+      where: { id: ids.team },
+      create: { id: ids.team, workspaceId: ids.workspace, name: 'Marketing' },
+      update: { workspaceId: ids.workspace, name: 'Marketing' },
+    });
+    // Main Role đặt theo team (ERD 0.3.4-draft); Manager không có Main Role trong dữ liệu demo.
+    for (const member of [
+      { id: ids.managerTeamMembership, userId: manager.id, mainRoleId: null },
+      {
+        id: ids.contentTeamMembership,
+        userId: content.id,
+        mainRoleId: ids.contentRole,
+      },
+      {
+        id: ids.designerTeamMembership,
+        userId: designer.id,
+        mainRoleId: ids.designerRole,
+      },
+    ]) {
+      await prisma.teamMembership.upsert({
+        where: { teamId_userId: { teamId: ids.team, userId: member.userId } },
+        create: {
+          id: member.id,
+          teamId: ids.team,
+          userId: member.userId,
+          mainRoleId: member.mainRoleId,
+          status: 'ACTIVE',
+        },
+        update: { status: 'ACTIVE', mainRoleId: member.mainRoleId },
+      });
+    }
+
     await prisma.skill.upsert({
       where: { id: ids.copywritingSkill },
       create: {
@@ -209,38 +219,6 @@ async function seed(): Promise<void> {
       update: { workspaceId: ids.workspace, name: 'Figma' },
     });
 
-    await prisma.memberRole.upsert({
-      where: {
-        workspaceId_userId_roleId: {
-          workspaceId: ids.workspace,
-          userId: content.id,
-          roleId: ids.contentRole,
-        },
-      },
-      create: {
-        id: ids.contentMemberRole,
-        workspaceId: ids.workspace,
-        userId: content.id,
-        roleId: ids.contentRole,
-      },
-      update: {},
-    });
-    await prisma.memberRole.upsert({
-      where: {
-        workspaceId_userId_roleId: {
-          workspaceId: ids.workspace,
-          userId: designer.id,
-          roleId: ids.designerRole,
-        },
-      },
-      create: {
-        id: ids.designerMemberRole,
-        workspaceId: ids.workspace,
-        userId: designer.id,
-        roleId: ids.designerRole,
-      },
-      update: {},
-    });
     await prisma.memberSkill.upsert({
       where: {
         workspaceId_userId_skillId: {
@@ -270,6 +248,42 @@ async function seed(): Promise<void> {
         workspaceId: ids.workspace,
         userId: designer.id,
         skillId: ids.figmaSkill,
+      },
+      update: {},
+    });
+
+    // Capacity demo: content đã được duyệt 20h/tuần; designer mới khai 15h, đang chờ duyệt.
+    const seededAt = new Date('2026-11-24T01:00:00.000Z');
+    await prisma.memberCapacity.upsert({
+      where: {
+        workspaceId_userId: { workspaceId: ids.workspace, userId: content.id },
+      },
+      create: {
+        id: ids.contentCapacity,
+        workspaceId: ids.workspace,
+        userId: content.id,
+        declaredWeeklyHours: 20,
+        declaredAt: seededAt,
+        approvedWeeklyHours: 20,
+        approvedByUserId: manager.id,
+        approvedAt: seededAt,
+        status: 'APPROVED',
+        version: 2,
+      },
+      update: {},
+    });
+    await prisma.memberCapacity.upsert({
+      where: {
+        workspaceId_userId: { workspaceId: ids.workspace, userId: designer.id },
+      },
+      create: {
+        id: ids.designerCapacity,
+        workspaceId: ids.workspace,
+        userId: designer.id,
+        declaredWeeklyHours: 15,
+        declaredAt: seededAt,
+        status: 'PENDING_APPROVAL',
+        version: 1,
       },
       update: {},
     });
@@ -377,8 +391,8 @@ async function seed(): Promise<void> {
       prisma.teamMembership.count(),
       prisma.role.count(),
       prisma.skill.count(),
-      prisma.memberRole.count(),
       prisma.memberSkill.count(),
+      prisma.memberCapacity.count(),
       prisma.milestone.count(),
       prisma.task.count(),
       prisma.taskRoleRequirement.count(),
@@ -393,8 +407,8 @@ async function seed(): Promise<void> {
       'team_memberships',
       'roles',
       'skills',
-      'member_roles',
       'member_skills',
+      'member_capacities',
       'milestones',
       'tasks',
       'task_role_requirements',
